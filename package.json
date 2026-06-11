@@ -1,0 +1,49 @@
+{
+  "name": "canvas-v5",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "dotenv": "^17.2.2",
+      "zod": "^4.1.13",
+      "typescript": "^6",
+      "@types/node": "^22.13.14",
+      "next-themes": "^0.4.6",
+      "react": "^19.2.6",
+      "react-dom": "^19.2.6",
+      "@trpc/server": "^11.16.0",
+      "@trpc/client": "^11.16.0",
+      "better-auth": "1.6.11",
+      "@types/react": "^19.2.15",
+      "@types/react-dom": "^19.2.3"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:web": "turbo -F web dev",
+    "db:push": "turbo -F @canvas-v5/db db:push",
+    "db:studio": "turbo -F @canvas-v5/db db:studio",
+    "db:generate": "turbo -F @canvas-v5/db db:generate",
+    "db:migrate": "turbo -F @canvas-v5/db db:migrate",
+    "check": "biome check --write ."
+  },
+  "dependencies": {
+    "@canvas-v5/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@canvas-v5/config": "workspace:*",
+    "@types/node": "catalog:",
+    "turbo": "^2.9.16",
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.3.11"
+}

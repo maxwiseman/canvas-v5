@@ -1,0 +1,24 @@
+{
+  "name": "@canvas-v5/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@canvas-v5/db": "workspace:*",
+    "@canvas-v5/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@canvas-v5/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

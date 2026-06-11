@@ -1,0 +1,3 @@
+{
+  "extends": "@canvas-v5/config/tsconfig.base.json"
+}
