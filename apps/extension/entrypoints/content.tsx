@@ -41,6 +41,7 @@ export default defineContentScript({
 
 		const host = document.createElement("div");
 		host.id = "canvas-v5-root";
+		host.classList.add("dark");
 		const shadowRoot = host.attachShadow({ mode: "open" });
 		const shadowStyle = document.createElement("style");
 		shadowStyle.textContent = `
@@ -54,55 +55,9 @@ export default defineContentScript({
 			#canvas-v5-shadow-mount {
 				display: block;
 				min-height: 100vh;
-				font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-				line-height: 1.5;
-				text-rendering: optimizeLegibility;
-				-webkit-font-smoothing: antialiased;
 			}
 
-			*, *::before, *::after {
-				box-sizing: border-box;
-			}
-
-			:where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) {
-				margin: 0;
-			}
-
-			:where(ul, ol) {
-				margin: 0;
-				padding: 0;
-				list-style: none;
-			}
-
-			:where(button, input, select, textarea) {
-				color: inherit;
-				font: inherit;
-			}
-
-			:where(button) {
-				appearance: none;
-				border: 0;
-				background: none;
-				margin: 0;
-				padding: 0;
-				text-align: inherit;
-			}
-
-			:where(a) {
-				color: inherit;
-				text-decoration: none;
-			}
-
-			:where(img, picture, video, canvas, svg) {
-				display: block;
-				max-width: 100%;
-			}
-
-			:where(table) {
-				border-collapse: collapse;
-			}
-
-			${appStyles}
+			${createShadowScopedCss(appStyles)}
 		`;
 		const mount = document.createElement("div");
 		mount.id = "canvas-v5-shadow-mount";
@@ -149,6 +104,19 @@ export default defineContentScript({
 		}
 	},
 });
+
+function createShadowScopedCss(css: string) {
+	return `${css
+		.replaceAll(":root", ":host")
+		.replace(/(^|[,{]\s*)\.dark(?=[\s.{:#[])/g, "$1:host(.dark)")}
+
+		#canvas-v5-shadow-mount {
+			background-color: var(--background);
+			color: var(--foreground);
+			font-family: var(--font-sans);
+		}
+	`;
+}
 
 function installWebAppBridge() {
 	window.addEventListener("message", (event) => {

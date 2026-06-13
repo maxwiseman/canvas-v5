@@ -29,6 +29,7 @@
         "react-dom": "catalog:",
       },
       "devDependencies": {
+        "@tailwindcss/vite": "^4.2.2",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@wxt-dev/module-react": "^1.1.5",
@@ -100,6 +101,7 @@
     "packages/app": {
       "name": "@canvas-v5/app",
       "dependencies": {
+        "@base-ui/react": "^1.5.0",
         "@canvas-v5/canvas-sdk": "workspace:*",
         "@canvas-v5/ui": "workspace:*",
         "@tanstack/react-router": "^1.168.22",

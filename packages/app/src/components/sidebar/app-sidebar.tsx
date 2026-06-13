@@ -1,4 +1,4 @@
-import { useCourses } from "@canvas-v5/canvas-sdk";
+import { useCourses, useUpdateCourseIcon } from "@canvas-v5/canvas-sdk";
 import {
 	Sidebar,
 	SidebarContent,
@@ -10,17 +10,33 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 } from "@canvas-v5/ui/components/sidebar";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { GraduationCap, Home, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
-// import { IconPicker } from "../icon-picker";
-// import UserMenu from "../user-menu";
+import { type ComponentType, useState } from "react";
+import { IconPicker } from "../icon-picker";
+import UserMenu from "../user-menu";
 import { ClassSidebar } from "./class-sidebar";
 
+const sidebars: {
+	sidebar: ComponentType<{ onBack: () => void }>;
+	matcher: RegExp;
+}[] = [
+	{
+		sidebar: ClassSidebar,
+		matcher: /^\/courses\/\d+\/?.*/,
+	},
+];
+
 export function AppSidebar() {
-	const [hasGoneBack, setHasGoneBack] = useState(false);
+	const pathname = useRouterState({
+		select: (state) => state.location.pathname,
+	});
+	const activeSidebar = sidebars.find(({ matcher }) => matcher.test(pathname));
+	const [hasGoneBack, setHasGoneBack] = useState(!activeSidebar);
 	const courses = useCourses();
+	const updateCourseIcon = useUpdateCourseIcon();
+	const SidebarComponent = activeSidebar?.sidebar ?? (() => null);
 
 	return (
 		<Sidebar variant="inset">
@@ -74,7 +90,7 @@ export function AppSidebar() {
 									{courses.map((course) => (
 										<SidebarMenuItem key={course.name}>
 											<SidebarMenuButton
-												className="pl-8"
+												className="pl-9.5"
 												onClick={() => {
 													setHasGoneBack(false);
 												}}
@@ -87,19 +103,19 @@ export function AppSidebar() {
 											>
 												{course.name}
 											</SidebarMenuButton>
-											{/*<SidebarMenuAction
+											<SidebarMenuAction
 												render={
 													<IconPicker
-														triggerClassName="absolute top-1/2! left-1 right-auto size-6 -translate-y-1/2 hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground"
+														triggerClassName="absolute top-1/2! left-2 right-auto size-6 -translate-y-1/2 hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground"
 														// @ts-expect-error - This will only ever be the valid icons
 														value={course.app.icon ?? "book"}
 														onValueChange={(val) =>
-															setIcon(course.id.toString(), val)
+															updateCourseIcon(course.id, val)
 														}
 													/>
 												}
 												className="top-1/2! right-auto left-1 size-4 -translate-y-1/2"
-											/>*/}
+											/>
 										</SidebarMenuItem>
 									))}
 								</SidebarGroupContent>
@@ -118,12 +134,14 @@ export function AppSidebar() {
 							exit={{ opacity: 0, filter: "blur(2px)", x: 30 }}
 							className="flex flex-col gap-2"
 						>
-							<ClassSidebar onBack={() => setHasGoneBack(true)} />
+							<SidebarComponent onBack={() => setHasGoneBack(true)} />
 						</motion.div>
 					)}
 				</AnimatePresence>
 			</SidebarContent>
-			<SidebarFooter>{/*<UserMenu />*/}</SidebarFooter>
+			<SidebarFooter>
+				<UserMenu />
+			</SidebarFooter>
 		</Sidebar>
 	);
 }

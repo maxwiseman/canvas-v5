@@ -1,14 +1,13 @@
 import type { AppRouter } from "@canvas-v5/api/routers/index";
-import { Toaster } from "@canvas-v5/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+// import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	createRootRouteWithContext,
 	HeadContent,
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+// import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
 import appCss from "../index.css?url";
@@ -52,9 +51,8 @@ function RootDocument() {
 				<div className="min-h-svh">
 					<Outlet />
 				</div>
-				{/*<Toaster richColors />*/}
-				<TanStackRouterDevtools position="bottom-left" />
-				<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+				{/*<TanStackRouterDevtools position="bottom-left" />
+				<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />*/}
 				<Scripts />
 			</body>
 		</html>
