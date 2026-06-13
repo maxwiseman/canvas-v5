@@ -1,23 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { CanvasApp } from "@canvas-v5/app";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { useTRPC } from "@/utils/trpc";
+import { canvasRuntime } from "../../canvas-runtime";
 
 export const Route = createFileRoute("/_auth/dashboard")({
-  component: RouteComponent,
+	component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { session } = Route.useRouteContext();
+	Route.useRouteContext();
 
-  const trpc = useTRPC();
-  const privateData = useQuery(trpc.privateData.queryOptions());
-
-  return (
-    <div>
-      <h1>Dashboard</h1>
-      <p>Welcome {session?.user.name}</p>
-      <p>API: {privateData.data?.message}</p>
-    </div>
-  );
+	return <CanvasApp runtime={canvasRuntime} />;
 }

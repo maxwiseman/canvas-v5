@@ -1,0 +1,24 @@
+{
+	"name": "@canvas-v5/canvas-sdk",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"react": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@canvas-v5/config": "workspace:*",
+		"@types/react": "catalog:",
+		"typescript": "catalog:"
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"extends": "@canvas-v5/config/tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"lib": ["ESNext", "DOM"],
+		"outDir": "dist",
+		"rootDir": "src"
+	},
+	"include": ["src"]
+}

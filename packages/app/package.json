@@ -1,0 +1,33 @@
+{
+	"name": "@canvas-v5/app",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./styles.css": "./src/styles.css",
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"routes:generate": "tsr generate --config tsr.config.json",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@canvas-v5/canvas-sdk": "workspace:*",
+		"@canvas-v5/ui": "workspace:*",
+		"@tanstack/react-router": "^1.168.22",
+		"lucide-react": "^1.8.0",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@canvas-v5/config": "workspace:*",
+		"@tanstack/router-cli": "^1.167.17",
+		"@tanstack/router-plugin": "^1.168.18",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"typescript": "catalog:"
+	}
+}
