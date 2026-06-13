@@ -41,7 +41,6 @@ export default defineContentScript({
 
 		const host = document.createElement("div");
 		host.id = "canvas-v5-root";
-		host.classList.add("dark");
 		const shadowRoot = host.attachShadow({ mode: "open" });
 		const shadowStyle = document.createElement("style");
 		shadowStyle.textContent = `

@@ -23,7 +23,7 @@ import {
 	Radical,
 	Star,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 
 type IconId = (typeof icons)[number]["id"];
 
@@ -41,6 +41,7 @@ type IconPickerProps = {
 
 	/** Extra classes applied to the trigger button. */
 	triggerClassName?: string;
+	triggerStyle?: CSSProperties;
 	/** Extra classes applied to the popup container. */
 	popupClassName?: string;
 };
@@ -53,6 +54,7 @@ export function IconPicker({
 	disabled,
 	label = "Icon",
 	triggerClassName,
+	triggerStyle,
 	popupClassName,
 }: IconPickerProps) {
 	const [open, setOpen] = useState(false);
@@ -88,6 +90,7 @@ export function IconPicker({
 
 			<Select.Trigger
 				aria-label={label}
+				style={triggerStyle}
 				className={cn(
 					"inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors",
 					"hover:bg-muted/50 hover:text-foreground",
