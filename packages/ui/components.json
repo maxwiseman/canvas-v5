@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-lyra",
+  "style": "base-luma",
   "rsc": false,
   "tsx": true,
   "tailwind": {
@@ -18,7 +18,7 @@
     "lib": "@canvas-v5/ui/lib",
     "ui": "@canvas-v5/ui/components"
   },
-  "menuColor": "default",
+  "menuColor": "inverted-translucent",
   "menuAccent": "subtle",
   "registries": {}
 }

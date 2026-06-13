@@ -1,6 +1,10 @@
 import { useCanvasRuntime, useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
+import { Button } from "@canvas-v5/ui/components/button";
+import { SidebarInset } from "@canvas-v5/ui/components/sidebar";
 import { Link, Outlet } from "@tanstack/react-router";
 import { Activity, Database, ListTodo, RefreshCw, Wrench } from "lucide-react";
+import { AppSidebar } from "./components/sidebar/app-sidebar";
+import { Providers } from "./providers";
 
 const navItems = [
 	{ to: "/dev", label: "Devtools", icon: Wrench },
@@ -14,42 +18,54 @@ export function CanvasDevtoolsRoot() {
 	const snapshot = useCanvasSnapshot();
 
 	return (
-		<div className="cv5-shell">
-			<aside className="cv5-sidebar">
-				<div>
-					<p className="cv5-eyebrow">Canvas V5</p>
-					<h1>SDK Devtools</h1>
+		<Providers>
+			{/*<div className="flex max-h-screen">
+				<aside className="cv5-sidebar">
+					<div>
+						<p className="cv5-eyebrow">Canvas V5</p>
+						<h1>SDK Devtools</h1>
+					</div>
+					<nav className="cv5-nav">
+						{navItems.map(({ to, label, icon: Icon }) => (
+							<Link key={to} to={to as never} className="cv5-nav-link">
+								<Icon size={16} />
+								<span>{label}</span>
+							</Link>
+						))}
+					</nav>
+					<SidebarAuthStatus
+						appStatus={snapshot.appAuth}
+						canvasStatus={snapshot.canvasAuth}
+						courseCount={snapshot.courses.length}
+						onSignIn={() => void runtime.openAppLogin()}
+						onRefreshAuth={() => void runtime.refreshAppAuth()}
+					/>
+					<Button
+						variant="outline"
+						onClick={() =>
+							void Promise.all([
+								runtime.syncConnections(),
+								runtime.syncCourses(),
+							])
+						}
+					>
+						<RefreshCw size={14} />
+						Sync now
+					</Button>
+				</aside>
+				<main className="cv5-main">
+					<Outlet />
+				</main>
+			</div>*/}
+			<AppSidebar />
+			<SidebarInset>
+				<div className="relative size-full">
+					<div className="absolute size-full overflow-scroll p-1">
+						<Outlet />
+					</div>
 				</div>
-				<nav className="cv5-nav">
-					{navItems.map(({ to, label, icon: Icon }) => (
-						<Link key={to} to={to as never} className="cv5-nav-link">
-							<Icon size={16} />
-							<span>{label}</span>
-						</Link>
-					))}
-				</nav>
-				<SidebarAuthStatus
-					appStatus={snapshot.appAuth}
-					canvasStatus={snapshot.canvasAuth}
-					courseCount={snapshot.courses.length}
-					onSignIn={() => void runtime.openAppLogin()}
-					onRefreshAuth={() => void runtime.refreshAppAuth()}
-				/>
-				<button
-					className="cv5-refresh"
-					type="button"
-					onClick={() =>
-						void Promise.all([runtime.syncConnections(), runtime.syncCourses()])
-					}
-				>
-					<RefreshCw size={14} />
-					Sync now
-				</button>
-			</aside>
-			<main className="cv5-main">
-				<Outlet />
-			</main>
-		</div>
+			</SidebarInset>
+		</Providers>
 	);
 }
 

@@ -19,6 +19,7 @@
 		"@canvas-v5/ui": "workspace:*",
 		"@tanstack/react-router": "^1.168.22",
 		"lucide-react": "^1.8.0",
+		"motion": "^12.40.0",
 		"react": "catalog:",
 		"react-dom": "catalog:"
 	},

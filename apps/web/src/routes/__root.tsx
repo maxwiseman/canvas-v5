@@ -52,7 +52,7 @@ function RootDocument() {
 				<div className="min-h-svh">
 					<Outlet />
 				</div>
-				<Toaster richColors />
+				{/*<Toaster richColors />*/}
 				<TanStackRouterDevtools position="bottom-left" />
 				<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
 				<Scripts />
