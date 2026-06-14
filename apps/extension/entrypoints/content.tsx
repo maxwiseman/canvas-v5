@@ -148,6 +148,7 @@ function watchCanvasStyles() {
 		subtree: target === document.documentElement,
 	});
 	return observer;
+}
 
 function installWebAppBridge() {
 	window.addEventListener("message", (event) => {
