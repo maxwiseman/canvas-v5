@@ -227,6 +227,6 @@ export interface OverlayTransport {
 	updateCourseOverlay(input: {
 		canvasConnectionId: string;
 		canvasCourseId: number;
-		icon?: string | null;
+		icon?: IconId | null;
 	}): Promise<CourseOverlay>;
 }
