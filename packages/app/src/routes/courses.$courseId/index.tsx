@@ -5,7 +5,7 @@ import {
 } from "@canvas-v5/canvas-sdk";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/courses/$courseId")({
+export const Route = createFileRoute("/courses/$courseId/")({
 	component: CourseRoute,
 });
 

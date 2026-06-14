@@ -11,6 +11,7 @@
 		}
 	},
 	"scripts": {
+		"dev": "CHOKIDAR_USEPOLLING=1 tsr watch --config tsr.config.json",
 		"routes:generate": "tsr generate --config tsr.config.json",
 		"check-types": "tsc --noEmit"
 	},

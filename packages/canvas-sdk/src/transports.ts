@@ -138,6 +138,20 @@ export class MockCanvasTransport implements CanvasTransport {
 		if (path.includes("/users/self/profile")) {
 			return { id: "mock-user", name: "Mock Canvas User" } as T;
 		}
+		const assignmentMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/assignments\/(?<assignmentId>\d+)/,
+		);
+		if (assignmentMatch?.groups) {
+			const courseId = Number(assignmentMatch.groups.courseId);
+			const assignmentId = Number(assignmentMatch.groups.assignmentId);
+			return {
+				id: assignmentId,
+				course_id: courseId,
+				name: `Mock assignment ${assignmentId}`,
+				description: "<p>Mock assignment details.</p>",
+				workflow_state: "published",
+			} as T;
+		}
 		return [] as T;
 	}
 

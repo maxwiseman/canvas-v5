@@ -368,6 +368,47 @@ export class CanvasRuntime {
 		}
 	}
 
+	async syncAssignment(courseId: number, assignmentId: number) {
+		this.setScope("assignments", { status: "syncing", pendingJobs: 1 });
+		try {
+			const assignment =
+				await this.options.canvasTransport.request<CanvasAssignment>(
+					`/api/v1/courses/${courseId}/assignments/${assignmentId}`,
+				);
+			const normalizedAssignment = {
+				...assignment,
+				id: assignmentId,
+				course_id: courseId,
+			};
+			const nextAssignments = [
+				...this.snapshot.assignments.filter(
+					(candidate) =>
+						!(
+							candidate.course_id === courseId &&
+							candidate.id === normalizedAssignment.id
+						),
+				),
+				normalizedAssignment,
+			];
+			this.setSnapshot({ ...this.snapshot, assignments: nextAssignments });
+			await this.store.put("assignments", normalizedAssignment);
+			this.setScope("assignments", {
+				status: "idle",
+				pendingJobs: 0,
+				lastSyncedAt: new Date().toISOString(),
+			});
+		} catch (error) {
+			this.setScope("assignments", {
+				status: "error",
+				pendingJobs: 0,
+				error:
+					error instanceof Error
+						? error.message
+						: "Unable to sync assignment.",
+			});
+		}
+	}
+
 	async syncCourseOverlays() {
 		this.setScope("course-overlays", { status: "syncing", pendingJobs: 1 });
 		try {
@@ -687,6 +728,31 @@ export function useAssignments(courseId?: number | string) {
 		: assignments.filter(
 				(assignment) => assignment.course_id === normalizedCourseId,
 			);
+}
+
+export function useAssignment(
+	courseId: number | string,
+	assignmentId: number | string,
+) {
+	const runtime = useCanvasRuntime();
+	const assignments = useCanvasSnapshot().assignments;
+	const normalizedCourseId = Number(courseId);
+	const normalizedAssignmentId = Number(assignmentId);
+
+	useEffect(() => {
+		if (
+			Number.isFinite(normalizedCourseId) &&
+			Number.isFinite(normalizedAssignmentId)
+		) {
+			void runtime.syncAssignment(normalizedCourseId, normalizedAssignmentId);
+		}
+	}, [normalizedCourseId, normalizedAssignmentId, runtime]);
+
+	return assignments.find(
+		(assignment) =>
+			assignment.course_id === normalizedCourseId &&
+			assignment.id === normalizedAssignmentId,
+	);
 }
 
 export function useModules(courseId?: number | string) {

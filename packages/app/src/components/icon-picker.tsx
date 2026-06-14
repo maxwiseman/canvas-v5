@@ -177,6 +177,10 @@ export function PickedIcon({
 	return <Icon className={className} aria-hidden="true" />;
 }
 
+export function isIconId(value: string | null | undefined): value is IconId {
+	return icons.some((icon) => icon.id === value);
+}
+
 const icons = [
 	{ id: "atom", name: "Atom", icon: Atom },
 	{ id: "flask", name: "Flask", icon: FlaskConical },

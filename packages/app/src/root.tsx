@@ -1,22 +1,10 @@
-import { useCanvasRuntime, useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
-import { Button } from "@canvas-v5/ui/components/button";
+// import type { useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
 import { SidebarInset } from "@canvas-v5/ui/components/sidebar";
-import { Link, Outlet } from "@tanstack/react-router";
-import { Activity, Database, ListTodo, RefreshCw, Wrench } from "lucide-react";
+import { Outlet } from "@tanstack/react-router";
 import { AppSidebar } from "./components/sidebar/app-sidebar";
 import { Providers } from "./providers";
 
-const navItems = [
-	{ to: "/dev", label: "Devtools", icon: Wrench },
-	{ to: "/", label: "Courses", icon: ListTodo },
-	{ to: "/dev/sync", label: "Sync", icon: Activity },
-	{ to: "/dev/mutations", label: "Mutations", icon: Database },
-] as const;
-
 export function CanvasDevtoolsRoot() {
-	const runtime = useCanvasRuntime();
-	const snapshot = useCanvasSnapshot();
-
 	return (
 		<Providers>
 			{/*<div className="flex max-h-screen">
@@ -69,63 +57,63 @@ export function CanvasDevtoolsRoot() {
 	);
 }
 
-type AppStatus = ReturnType<typeof useCanvasSnapshot>["appAuth"];
-type CanvasStatus = ReturnType<typeof useCanvasSnapshot>["canvasAuth"];
+// type AppStatus = ReturnType<typeof useCanvasSnapshot>["appAuth"];
+// type CanvasStatus = ReturnType<typeof useCanvasSnapshot>["canvasAuth"];
 
-function SidebarAuthStatus({
-	appStatus,
-	canvasStatus,
-	courseCount,
-	onSignIn,
-	onRefreshAuth,
-}: {
-	appStatus: AppStatus;
-	canvasStatus: CanvasStatus;
-	courseCount: number;
-	onSignIn: () => void;
-	onRefreshAuth: () => void;
-}) {
-	const appLabel =
-		appStatus.status === "authenticated"
-			? (appStatus.user.name ?? appStatus.user.email ?? "Signed in")
-			: appStatus.status;
-	const canvasLabel =
-		canvasStatus.status === "authenticated"
-			? (canvasStatus.user.name ?? canvasStatus.baseUrl)
-			: canvasStatus.status;
+// function SidebarAuthStatus({
+// 	appStatus,
+// 	canvasStatus,
+// 	courseCount,
+// 	onSignIn,
+// 	onRefreshAuth,
+// }: {
+// 	appStatus: AppStatus;
+// 	canvasStatus: CanvasStatus;
+// 	courseCount: number;
+// 	onSignIn: () => void;
+// 	onRefreshAuth: () => void;
+// }) {
+// 	const appLabel =
+// 		appStatus.status === "authenticated"
+// 			? (appStatus.user.name ?? appStatus.user.email ?? "Signed in")
+// 			: appStatus.status;
+// 	const canvasLabel =
+// 		canvasStatus.status === "authenticated"
+// 			? (canvasStatus.user.name ?? canvasStatus.baseUrl)
+// 			: canvasStatus.status;
 
-	return (
-		<div className="cv5-sidebar-status">
-			<div>
-				<span>App</span>
-				<strong>{appLabel}</strong>
-				{appStatus.status !== "authenticated" ? (
-					<div className="cv5-sidebar-action-row">
-						<button
-							className="cv5-sidebar-action"
-							type="button"
-							onClick={onSignIn}
-						>
-							Sign in
-						</button>
-						<button
-							className="cv5-sidebar-action"
-							type="button"
-							onClick={onRefreshAuth}
-						>
-							Refresh
-						</button>
-					</div>
-				) : null}
-			</div>
-			<div>
-				<span>Canvas</span>
-				<strong>{canvasLabel}</strong>
-			</div>
-			<div>
-				<span>Synced classes</span>
-				<strong>{courseCount}</strong>
-			</div>
-		</div>
-	);
-}
+// 	return (
+// 		<div className="cv5-sidebar-status">
+// 			<div>
+// 				<span>App</span>
+// 				<strong>{appLabel}</strong>
+// 				{appStatus.status !== "authenticated" ? (
+// 					<div className="cv5-sidebar-action-row">
+// 						<button
+// 							className="cv5-sidebar-action"
+// 							type="button"
+// 							onClick={onSignIn}
+// 						>
+// 							Sign in
+// 						</button>
+// 						<button
+// 							className="cv5-sidebar-action"
+// 							type="button"
+// 							onClick={onRefreshAuth}
+// 						>
+// 							Refresh
+// 						</button>
+// 					</div>
+// 				) : null}
+// 			</div>
+// 			<div>
+// 				<span>Canvas</span>
+// 				<strong>{canvasLabel}</strong>
+// 			</div>
+// 			<div>
+// 				<span>Synced classes</span>
+// 				<strong>{courseCount}</strong>
+// 			</div>
+// 		</div>
+// 	);
+// }
