@@ -1,5 +1,5 @@
 import { ScriptOnce } from "@tanstack/react-router";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "dark" | "light" | "system";
 
@@ -33,28 +33,13 @@ function resolveTheme(theme: Theme) {
 		: "light";
 }
 
-function getThemeRoots(marker: HTMLElement | null) {
-	const rootNode = marker?.getRootNode();
-
-	if (rootNode instanceof ShadowRoot) {
-		const roots = [
-			marker?.parentElement,
-			rootNode.host instanceof HTMLElement ? rootNode.host : null,
-		];
-		return roots.filter((root): root is HTMLElement => root !== null);
-	}
-
-	return [document.documentElement];
-}
-
-function applyTheme(theme: Theme, roots: HTMLElement[]) {
+function applyTheme(theme: Theme) {
 	const resolved = resolveTheme(theme);
+	const root = document.documentElement;
 
-	for (const root of roots) {
-		root.classList.remove("light", "dark");
-		root.classList.add(resolved);
-		root.style.colorScheme = resolved;
-	}
+	root.classList.remove("light", "dark");
+	root.classList.add(resolved);
+	root.style.colorScheme = resolved;
 }
 
 export function ThemeProvider({
@@ -64,7 +49,6 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
 	const [theme, setThemeState] = useState<Theme>(defaultTheme);
 	const [mounted, setMounted] = useState(false);
-	const markerRef = useRef<HTMLSpanElement>(null);
 
 	useEffect(() => {
 		const stored = localStorage.getItem(storageKey);
@@ -78,15 +62,14 @@ export function ThemeProvider({
 
 	useEffect(() => {
 		if (!mounted) return;
-		applyTheme(theme, getThemeRoots(markerRef.current));
+		applyTheme(theme);
 	}, [theme, mounted]);
 
 	useEffect(() => {
 		if (!mounted || theme !== "system") return;
 
 		const media = window.matchMedia("(prefers-color-scheme: dark)");
-		const onChange = () =>
-			applyTheme("system", getThemeRoots(markerRef.current));
+		const onChange = () => applyTheme("system");
 		media.addEventListener("change", onChange);
 		return () => media.removeEventListener("change", onChange);
 	}, [theme, mounted]);
@@ -98,7 +81,6 @@ export function ThemeProvider({
 
 	return (
 		<ThemeProviderContext value={{ theme, setTheme }}>
-			<span ref={markerRef} hidden style={{ display: "none" }} />
 			<ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
 			{children}
 		</ThemeProviderContext>

@@ -1,4 +1,5 @@
 import { Select } from "@base-ui/react/select";
+import type { IconId } from "@canvas-v5/canvas-sdk";
 import { cn } from "@canvas-v5/ui/lib/utils";
 import {
 	Atom,
@@ -15,7 +16,9 @@ import {
 	Divide,
 	Earth,
 	FlaskConical,
+	Gavel,
 	Landmark,
+	type LucideIcon,
 	Microscope,
 	NotebookPen,
 	Palette,
@@ -23,9 +26,7 @@ import {
 	Radical,
 	Star,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-
-type IconId = (typeof icons)[number]["id"];
+import { type CSSProperties, useMemo, useState } from "react";
 
 type IconPickerProps = {
 	/** Controlled value. */
@@ -41,6 +42,7 @@ type IconPickerProps = {
 
 	/** Extra classes applied to the trigger button. */
 	triggerClassName?: string;
+	triggerStyle?: CSSProperties;
 	/** Extra classes applied to the popup container. */
 	popupClassName?: string;
 };
@@ -53,6 +55,7 @@ export function IconPicker({
 	disabled,
 	label = "Icon",
 	triggerClassName,
+	triggerStyle,
 	popupClassName,
 }: IconPickerProps) {
 	const [open, setOpen] = useState(false);
@@ -88,6 +91,7 @@ export function IconPicker({
 
 			<Select.Trigger
 				aria-label={label}
+				style={triggerStyle}
 				className={cn(
 					"inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors",
 					"hover:bg-muted/50 hover:text-foreground",
@@ -194,9 +198,8 @@ const icons = [
 	{ id: "code", name: "Code", icon: CodeXml },
 	{ id: "binary", name: "Binary", icon: Binary },
 	{ id: "government", name: "Government", icon: Landmark },
+	{ id: "gavel", name: "Gavel", icon: Gavel },
 	{ id: "earth", name: "Earth", icon: Earth },
-] as const;
+] satisfies { id: IconId; name: string; icon: LucideIcon }[];
 
-export const iconIds = icons.map((i) => i.id);
-export type { IconId };
 export { icons as availableIcons };

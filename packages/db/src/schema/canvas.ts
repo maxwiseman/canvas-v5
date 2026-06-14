@@ -1,3 +1,4 @@
+import type { IconId } from "@canvas-v5/canvas-sdk";
 import { relations } from "drizzle-orm";
 import {
 	index,
@@ -44,7 +45,7 @@ export const canvasCourseOverlay = pgTable(
 			.notNull()
 			.references(() => canvasConnection.id, { onDelete: "cascade" }),
 		canvasCourseId: integer("canvas_course_id").notNull(),
-		icon: text("icon"),
+		icon: text("icon").$type<IconId | null>(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()

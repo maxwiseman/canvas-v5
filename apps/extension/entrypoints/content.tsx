@@ -39,29 +39,10 @@ export default defineContentScript({
 			return;
 		}
 
+		resetExistingMount();
 		const host = document.createElement("div");
 		host.id = "canvas-v5-root";
-		host.classList.add("dark");
-		const shadowRoot = host.attachShadow({ mode: "open" });
-		const shadowStyle = document.createElement("style");
-		shadowStyle.textContent = `
-			:host {
-				all: initial;
-				display: block;
-				min-height: 100vh;
-				color-scheme: light;
-			}
-
-			#canvas-v5-shadow-mount {
-				display: block;
-				min-height: 100vh;
-			}
-
-			${createShadowScopedCss(appStyles)}
-		`;
-		const mount = document.createElement("div");
-		mount.id = "canvas-v5-shadow-mount";
-		shadowRoot.append(shadowStyle, mount);
+		disableCanvasStyles();
 
 		document.documentElement.classList.add("canvas-v5-mounted");
 		document.body.append(host);
@@ -69,17 +50,27 @@ export default defineContentScript({
 		const style = document.createElement("style");
 		style.id = "canvas-v5-host-style";
 		style.textContent = `
-      html.canvas-v5-mounted body > :not(#canvas-v5-root):not(script):not(style) {
+			${appStyles}
+
+      html.canvas-v5-mounted body > :not(#canvas-v5-root):not([data-base-ui-portal]):not(script):not(style) {
         display: none !important;
       }
+
+			html.canvas-v5-mounted,
+			html.canvas-v5-mounted body,
       #canvas-v5-root {
-				all: initial !important;
-				display: block !important;
+				margin: 0 !important;
+				width: 100% !important;
         min-height: 100vh;
+      }
+
+      #canvas-v5-root {
+				display: block !important;
 				isolation: isolate;
       }
     `;
 		document.head.append(style);
+		const styleObserver = watchCanvasStyles();
 
 		try {
 			const runtime = createExtensionCanvasRuntime({
@@ -91,12 +82,13 @@ export default defineContentScript({
 						type: "canvas-v5:open-app-login",
 					}),
 			});
-			createRoot(mount).render(
+			createRoot(host).render(
 				<React.StrictMode>
 					<CanvasApp runtime={runtime} />
 				</React.StrictMode>,
 			);
 		} catch (error) {
+			styleObserver.disconnect();
 			document.documentElement.classList.remove("canvas-v5-mounted");
 			host.remove();
 			style.remove();
@@ -105,18 +97,57 @@ export default defineContentScript({
 	},
 });
 
-function createShadowScopedCss(css: string) {
-	return `${css
-		.replaceAll(":root", ":host")
-		.replace(/(^|[,{]\s*)\.dark(?=[\s.{:#[])/g, "$1:host(.dark)")}
-
-		#canvas-v5-shadow-mount {
-			background-color: var(--background);
-			color: var(--foreground);
-			font-family: var(--font-sans);
-		}
-	`;
+function resetExistingMount() {
+	document.documentElement.classList.remove("canvas-v5-mounted");
+	document.getElementById("canvas-v5-root")?.remove();
+	document.getElementById("canvas-v5-host-style")?.remove();
 }
+
+function disableCanvasStyles() {
+	const styles = document.querySelectorAll<HTMLStyleElement>(
+		"style:not(#canvas-v5-host-style)",
+	);
+	for (const style of styles) {
+		style.remove();
+	}
+
+	const stylesheets = document.querySelectorAll<HTMLLinkElement>(
+		'link[rel~="stylesheet"]',
+	);
+	for (const stylesheet of stylesheets) {
+		stylesheet.disabled = true;
+		stylesheet.dataset.canvasV5Disabled = "true";
+	}
+}
+
+function watchCanvasStyles() {
+	const observer = new MutationObserver((mutations) => {
+		for (const mutation of mutations) {
+			for (const node of mutation.addedNodes) {
+				if (node instanceof HTMLStyleElement) {
+					if (node.id !== "canvas-v5-host-style") {
+						node.remove();
+					}
+					continue;
+				}
+
+				if (
+					node instanceof HTMLLinkElement &&
+					node.relList.contains("stylesheet")
+				) {
+					node.disabled = true;
+					node.dataset.canvasV5Disabled = "true";
+				}
+			}
+		}
+	});
+
+	const target = document.head ?? document.documentElement;
+	observer.observe(target, {
+		childList: true,
+		subtree: target === document.documentElement,
+	});
+	return observer;
 
 function installWebAppBridge() {
 	window.addEventListener("message", (event) => {
