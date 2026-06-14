@@ -152,6 +152,7 @@
     "packages/db": {
       "name": "@canvas-v5/db",
       "dependencies": {
+        "@canvas-v5/canvas-sdk": "workspace:*",
         "@canvas-v5/env": "workspace:*",
         "@neondatabase/serverless": "^1.0.2",
         "dotenv": "catalog:",

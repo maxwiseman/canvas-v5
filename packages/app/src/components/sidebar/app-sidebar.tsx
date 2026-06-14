@@ -108,8 +108,7 @@ export function AppSidebar() {
 													<IconPicker
 														triggerClassName="absolute top-1/2! left-2 right-auto size-6 hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground"
 														triggerStyle={{ transform: "translateY(-50%)" }}
-														// @ts-expect-error - This will only ever be the valid icons
-														value={course.app.icon ?? "book"}
+														value={course.app?.icon ?? "book"}
 														onValueChange={(val) =>
 															updateCourseIcon(course.id, val)
 														}

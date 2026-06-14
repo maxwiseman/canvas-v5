@@ -1,4 +1,5 @@
 import { Select } from "@base-ui/react/select";
+import type { IconId } from "@canvas-v5/canvas-sdk";
 import { cn } from "@canvas-v5/ui/lib/utils";
 import {
 	Atom,
@@ -15,7 +16,9 @@ import {
 	Divide,
 	Earth,
 	FlaskConical,
+	Gavel,
 	Landmark,
+	type LucideIcon,
 	Microscope,
 	NotebookPen,
 	Palette,
@@ -24,8 +27,6 @@ import {
 	Star,
 } from "lucide-react";
 import { type CSSProperties, useMemo, useState } from "react";
-
-type IconId = (typeof icons)[number]["id"];
 
 type IconPickerProps = {
 	/** Controlled value. */
@@ -197,9 +198,8 @@ const icons = [
 	{ id: "code", name: "Code", icon: CodeXml },
 	{ id: "binary", name: "Binary", icon: Binary },
 	{ id: "government", name: "Government", icon: Landmark },
+	{ id: "gavel", name: "Gavel", icon: Gavel },
 	{ id: "earth", name: "Earth", icon: Earth },
-] as const;
+] satisfies { id: IconId; name: string; icon: LucideIcon }[];
 
-export const iconIds = icons.map((i) => i.id);
-export type { IconId };
 export { icons as availableIcons };

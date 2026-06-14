@@ -26,6 +26,30 @@ export interface CanvasUser {
 	avatar_url?: string;
 }
 
+export type IconId =
+	| "atom"
+	| "flask"
+	| "microscope"
+	| "book"
+	| "bookmark"
+	| "notebook"
+	| "star"
+	| "paintbrush"
+	| "palette"
+	| "brain"
+	| "brain-circuit"
+	| "calculator"
+	| "diff"
+	| "divide"
+	| "pi"
+	| "radical"
+	| "cone"
+	| "code"
+	| "binary"
+	| "government"
+	| "gavel"
+	| "earth";
+
 export interface CanvasAccount {
 	id: string;
 	label: string;
@@ -58,7 +82,7 @@ export interface CanvasCourse {
 	end_at?: string | null;
 	enrollment_term_id?: number;
 	app?: {
-		icon?: string | null;
+		icon?: IconId | null;
 	};
 }
 
@@ -122,7 +146,7 @@ export interface CourseOverlay {
 	id: string;
 	canvasConnectionId: string;
 	canvasCourseId: number;
-	icon?: string | null;
+	icon?: IconId | null;
 	updatedAt: string;
 }
 
