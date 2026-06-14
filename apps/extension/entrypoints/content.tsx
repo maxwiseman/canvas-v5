@@ -98,6 +98,7 @@ export default defineContentScript({
 });
 
 function resetExistingMount() {
+	document.documentElement.classList.remove("canvas-v5-mounted");
 	document.getElementById("canvas-v5-root")?.remove();
 	document.getElementById("canvas-v5-host-style")?.remove();
 }
@@ -141,12 +142,12 @@ function watchCanvasStyles() {
 		}
 	});
 
-	observer.observe(document.documentElement, {
+	const target = document.head ?? document.documentElement;
+	observer.observe(target, {
 		childList: true,
-		subtree: true,
+		subtree: target === document.documentElement,
 	});
 	return observer;
-}
 
 function installWebAppBridge() {
 	window.addEventListener("message", (event) => {
