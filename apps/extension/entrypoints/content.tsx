@@ -14,15 +14,24 @@ import { createRoot } from "react-dom/client";
 const APP_BASE_URL =
 	import.meta.env.VITE_CANVAS_V5_APP_ORIGIN?.replace(/\/$/, "") ??
 	"http://localhost:3000";
+const APP_MATCH_PATTERN = `${new URL(APP_BASE_URL).origin}/*`;
 
 export default defineContentScript({
 	matches: [
 		"*://*.instructure.com/*",
 		"http://localhost:3000/*",
 		"http://localhost:3001/*",
+		APP_MATCH_PATTERN,
 	],
 	runAt: "document_idle",
 	async main() {
+		if (
+			new URLSearchParams(window.location.search).get("canvas_v5_native") ===
+			"1"
+		) {
+			return;
+		}
+
 		if (!window.location.hostname.endsWith(".instructure.com")) {
 			installWebAppBridge();
 			return;

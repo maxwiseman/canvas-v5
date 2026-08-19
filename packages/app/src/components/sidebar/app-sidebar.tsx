@@ -41,13 +41,13 @@ export function AppSidebar() {
 	return (
 		<Sidebar variant="inset">
 			<SidebarContent>
-				<AnimatePresence initial={false} mode="popLayout">
+				<AnimatePresence initial={false} mode="wait">
 					{hasGoneBack && (
 						<motion.div
 							key="main-menu"
 							transition={{
 								ease: "easeOut",
-								duration: 0.15,
+								duration: 0.1,
 							}}
 							initial={{ opacity: 0, filter: "blur(2px)", x: -30 }}
 							animate={{ opacity: 1, filter: "blur(0px)", x: 0 }}
@@ -131,7 +131,7 @@ export function AppSidebar() {
 							key="sub-menu"
 							transition={{
 								ease: "easeOut",
-								duration: 0.15,
+								duration: 0.1,
 							}}
 							initial={{ opacity: 0, filter: "blur(2px)", x: 30 }}
 							animate={{ opacity: 1, filter: "blur(0px)", x: 0 }}

@@ -174,7 +174,7 @@ function DevRoute() {
 						<input
 							value={canvasBaseUrl}
 							onChange={(event) => setCanvasBaseUrl(event.currentTarget.value)}
-							placeholder="https://knoxschools.instructure.com"
+							placeholder="https://utk.instructure.com"
 							required
 							type="url"
 						/>

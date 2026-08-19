@@ -9,6 +9,7 @@ import {
 	LayoutTemplate,
 	Megaphone,
 	PencilLine,
+	Users,
 } from "lucide-react";
 
 export function ClassSidebar({ onBack }: { onBack: () => void }) {
@@ -41,7 +42,12 @@ export function ClassSidebar({ onBack }: { onBack: () => void }) {
 				Announcements
 			</SidebarMenuButton>
 			<SidebarMenuButton
-				render={<Link to="/courses/$classId/modules" params={{ classId }} />}
+				render={
+					<Link
+						to={"/courses/$courseId/modules" as never}
+						params={{ courseId: classId } as never}
+					/>
+				}
 			>
 				<Blocks />
 				Modules
@@ -61,6 +67,17 @@ export function ClassSidebar({ onBack }: { onBack: () => void }) {
 			<SidebarMenuButton>
 				<LayoutTemplate />
 				Pages
+			</SidebarMenuButton>
+			<SidebarMenuButton
+				render={
+					<Link
+						to={"/courses/$courseId/people" as never}
+						params={{ courseId: classId } as never}
+					/>
+				}
+			>
+				<Users />
+				People
 			</SidebarMenuButton>
 		</>
 	);

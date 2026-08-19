@@ -11,7 +11,7 @@ import { useState } from "react";
 export function CommentField() {
 	const [commentContent, setCommentContent] = useState("");
 	return (
-		<InputGroup className="flex-col items-end bg-input/20 ring-1 ring-border">
+		<InputGroup className="mt-8 flex-col items-end bg-input/20 ring-1 ring-border">
 			<InputGroupTextarea
 				onChange={(e) => setCommentContent(e.target.value)}
 				value={commentContent}

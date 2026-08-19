@@ -98,3 +98,58 @@ canvas-v5/
 - `bun run db:migrate`: Run database migrations
 - `bun run db:studio`: Open database studio UI
 - `bun run check`: Run Biome formatting and linting
+
+## Canvas Agent Access
+
+Canvas V5 includes a read-only Streamable HTTP MCP server at `/api/mcp`. It
+uses the best available source for each logical Canvas account:
+
+- OAuth or API-token credentials are fetched directly from the server.
+- Browser-session credentials are synchronized by the extension service worker.
+- Both paths use the same validation, normalization, content hashing, and cloud
+  cache reconciliation code in `packages/canvas-core`.
+
+After updating the checkout, apply the additive Drizzle schema:
+
+```bash
+bun run db:push
+```
+
+The extension runs a local sync every two hours. To wake suspended extension
+workers when MCP data is stale, configure Web Push on the server and provide the
+same public application origin when building the extension:
+
+```dotenv
+CANVAS_SYNC_VAPID_PUBLIC_KEY=...
+CANVAS_SYNC_VAPID_PRIVATE_KEY=...
+CANVAS_SYNC_VAPID_SUBJECT=mailto:you@example.com
+VITE_CANVAS_V5_APP_ORIGIN=https://your-canvas-v5.example
+```
+
+The VAPID variables are optional during local development. Without them, alarms
+and direct token refreshes still work, while on-demand session refreshes remain
+queued until the extension next starts or polls.
+
+For a cloud scheduler, call `/api/canvas/cron-sync` every two hours with:
+
+```http
+Authorization: Bearer <CANVAS_SYNC_CRON_SECRET>
+```
+
+`CANVAS_SYNC_CRON_SECRET` must be at least 24 characters. The scheduled route
+refreshes token-backed accounts directly and queues extension jobs for
+session-only accounts.
+
+Signed-in users can open `/settings`, create an MCP bearer token, and configure
+their MCP client with:
+
+```text
+URL: https://your-canvas-v5.example/api/mcp
+Authorization: Bearer cv5_...
+Transport: Streamable HTTP
+```
+
+MCP tokens are stored as SHA-256 hashes and are shown only once. The MCP tools
+are read-only and include account, course, assignment, assignment-detail, and
+refresh operations. Canvas access tokens remain encrypted server-side; browser
+session cookies are never uploaded.

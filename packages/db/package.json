@@ -9,14 +9,15 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {
+	"scripts": {
+		"check-types": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:migrate": "drizzle-kit migrate"
   },
-  "dependencies": {
-    "@canvas-v5/canvas-sdk": "workspace:*",
+	"dependencies": {
+		"@canvas-v5/canvas-core": "workspace:*",
     "@canvas-v5/env": "workspace:*",
     "@neondatabase/serverless": "^1.0.2",
     "dotenv": "catalog:",

@@ -15,6 +15,7 @@
 		"postinstall": "wxt prepare"
 	},
 	"dependencies": {
+		"@canvas-v5/canvas-core": "workspace:*",
 		"@canvas-v5/app": "workspace:*",
 		"@canvas-v5/canvas-sdk": "workspace:*",
 		"@tanstack/react-router": "^1.168.22",

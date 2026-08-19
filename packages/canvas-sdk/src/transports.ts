@@ -138,6 +138,19 @@ export class MockCanvasTransport implements CanvasTransport {
 		if (path.includes("/users/self/profile")) {
 			return { id: "mock-user", name: "Mock Canvas User" } as T;
 		}
+		const frontPageMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/front_page/,
+		);
+		if (frontPageMatch?.groups) {
+			return {
+				page_id: 1,
+				url: "welcome",
+				title: "Welcome to the course",
+				body: "<p>This course uses a Canvas page for its home.</p>",
+				published: true,
+				front_page: true,
+			} as T;
+		}
 		const assignmentMatch = path.match(
 			/\/courses\/(?<courseId>\d+)\/assignments\/(?<assignmentId>\d+)/,
 		);
@@ -156,18 +169,103 @@ export class MockCanvasTransport implements CanvasTransport {
 	}
 
 	async paginatedRequest<T>(path: string): Promise<T[]> {
+		const activityMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/activity_stream/,
+		);
+		if (activityMatch?.groups) {
+			return [
+				{
+					id: 1,
+					title: "Welcome announcement",
+					message: "Welcome to the course activity stream.",
+					type: "Message",
+					created_at: new Date().toISOString(),
+				},
+			] as T[];
+		}
+		const peopleMatch = path.match(/\/courses\/(?<courseId>\d+)\/users/);
+		if (peopleMatch?.groups) {
+			return [
+				{
+					id: 1,
+					name: "Alex Morgan",
+					short_name: "Alex",
+					sortable_name: "Morgan, Alex",
+				},
+				{
+					id: 2,
+					name: "Jordan Lee",
+					short_name: "Jordan",
+					sortable_name: "Lee, Jordan",
+				},
+			] as T[];
+		}
+		const moduleItemsMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/modules\/(?<moduleId>\d+)\/items/,
+		);
+		if (moduleItemsMatch?.groups) {
+			const courseId = Number(moduleItemsMatch.groups.courseId);
+			const moduleId = Number(moduleItemsMatch.groups.moduleId);
+			return [
+				{
+					id: moduleId * 100 + 1,
+					module_id: moduleId,
+					position: 1,
+					title: "Introduction",
+					type: "Page",
+					html_url: `https://canvas.example.edu/courses/${courseId}/pages/introduction`,
+					published: true,
+				},
+				{
+					id: moduleId * 100 + 2,
+					module_id: moduleId,
+					position: 2,
+					title: "Practice assignment",
+					type: "Assignment",
+					content_id: moduleId * 1000 + 2,
+					html_url: `https://canvas.example.edu/courses/${courseId}/assignments/${moduleId * 1000 + 2}`,
+					published: true,
+				},
+			] as T[];
+		}
+		const modulesMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/modules(?:\?|$)/,
+		);
+		if (modulesMatch?.groups) {
+			const courseId = Number(modulesMatch.groups.courseId);
+			return [
+				{
+					id: 1,
+					course_id: courseId,
+					name: "Getting started",
+					position: 1,
+					workflow_state: "active",
+					items_count: 3,
+				},
+				{
+					id: 2,
+					course_id: courseId,
+					name: "Week one",
+					position: 2,
+					workflow_state: "active",
+					items_count: 5,
+				},
+			] as T[];
+		}
 		if (path.includes("/courses")) {
 			return [
 				{
 					id: 101,
 					name: "Biology",
 					course_code: "BIO-101",
+					default_view: "wiki",
 					workflow_state: "available",
 				},
 				{
 					id: 204,
 					name: "World History",
 					course_code: "HIST-204",
+					default_view: "modules",
 					workflow_state: "available",
 				},
 			] as T[];

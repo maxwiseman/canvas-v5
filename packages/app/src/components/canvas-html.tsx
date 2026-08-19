@@ -8,7 +8,7 @@ import "katex/dist/katex.min.css";
 import { cn } from "@canvas-v5/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
-import { InlineMath } from "react-katex";
+import * as ReactKatex from "react-katex";
 
 export function CanvasHTML({
 	children,
@@ -63,7 +63,11 @@ export function CanvasHTML({
 					"data-equation-content": latex,
 					...props
 				}: ComponentProps<"img"> & { "data-equation-content"?: string }) =>
-					latex ? <InlineMath math={latex} /> : <CanvasImage {...props} />,
+					latex ? (
+						<ReactKatex.InlineMath math={latex} />
+					) : (
+						<CanvasImage {...props} />
+					),
 			},
 		});
 
@@ -97,17 +101,13 @@ function CanvasImage(props: ComponentProps<"img">) {
 	) {
 		return (
 			<span className="mx-auto block size-max max-w-lg">
-				{/* @ts-expect-error */}
-				<Image
-					alt=""
-					src=""
+				<img
 					{...props}
+					alt={props.alt ?? ""}
 					width={width}
-					ref={undefined}
 					height={height}
-					fill={height === undefined && width === undefined}
 					loading="eager"
-					className="relative! inset-0"
+					className={cn("relative! inset-0", props.className)}
 				/>
 			</span>
 		);

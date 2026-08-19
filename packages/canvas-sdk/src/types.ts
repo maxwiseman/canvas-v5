@@ -26,34 +26,11 @@ export interface CanvasUser {
 	avatar_url?: string;
 }
 
-export type IconId =
-	| "atom"
-	| "flask"
-	| "microscope"
-	| "book"
-	| "bookmark"
-	| "notebook"
-	| "star"
-	| "paintbrush"
-	| "palette"
-	| "brain"
-	| "brain-circuit"
-	| "calculator"
-	| "diff"
-	| "divide"
-	| "pi"
-	| "radical"
-	| "cone"
-	| "code"
-	| "binary"
-	| "government"
-	| "gavel"
-	| "earth";
-
 export interface CanvasAccount {
 	id: string;
 	label: string;
 	connectionId: string;
+	canvasIdentityId?: string;
 	canvasBaseUrl: string;
 	authMode: "canvas-session" | "api-token" | "oauth";
 	canvasUserId?: string;
@@ -77,6 +54,8 @@ export interface CanvasCourse {
 	id: number;
 	name: string;
 	course_code?: string;
+	default_view?: CanvasCourseDefaultView;
+	syllabus_body?: string | null;
 	workflow_state?: string;
 	start_at?: string | null;
 	end_at?: string | null;
@@ -86,6 +65,42 @@ export interface CanvasCourse {
 	};
 }
 
+export type CanvasCourseDefaultView =
+	| "feed"
+	| "wiki"
+	| "modules"
+	| "assignments"
+	| "syllabus";
+
+export interface CanvasPage extends Record<string, unknown> {
+	page_id: number;
+	url: string;
+	title: string;
+	body?: string | null;
+	published?: boolean;
+	front_page?: boolean;
+	locked_for_user?: boolean;
+	lock_explanation?: string;
+}
+
+export interface CanvasActivityItem extends Record<string, unknown> {
+	id: number;
+	title: string;
+	message?: string;
+	type?: string;
+	created_at?: string;
+	updated_at?: string;
+	html_url?: string;
+	read_state?: boolean;
+}
+
+export interface CanvasCourseHome {
+	id: number;
+	course_id: number;
+	front_page?: CanvasPage;
+	activity_stream?: CanvasActivityItem[];
+}
+
 export interface CanvasEnrollment {
 	id: number;
 	course_id: number;
@@ -93,6 +108,16 @@ export interface CanvasEnrollment {
 	type?: string;
 	role?: string;
 	enrollment_state?: string;
+}
+
+export interface CanvasCourseUser {
+	id: string;
+	canvas_user_id: number | string;
+	course_id: number;
+	name: string;
+	short_name?: string;
+	sortable_name?: string;
+	avatar_url?: string;
 }
 
 export interface CanvasExternalToolTagAttributes {
@@ -275,6 +300,22 @@ export interface CanvasModule {
 	name: string;
 	position?: number;
 	workflow_state?: string;
+	items_count?: number;
+	items?: CanvasModuleItem[];
+}
+
+export interface CanvasModuleItem extends Record<string, unknown> {
+	id: number;
+	module_id: number;
+	position?: number;
+	title: string;
+	indent?: number;
+	type: string;
+	content_id?: number;
+	html_url?: string;
+	external_url?: string;
+	new_tab?: boolean;
+	published?: boolean;
 }
 
 export interface CanvasAnnouncement {
@@ -318,8 +359,10 @@ export type SyncScope =
 	| "accounts"
 	| "courses"
 	| "enrollments"
+	| "people"
 	| "assignments"
 	| "modules"
+	| "course-home"
 	| "announcements"
 	| "submissions"
 	| "calendar"
@@ -355,8 +398,10 @@ export interface CanvasRuntimeSnapshot {
 	accounts: CanvasAccount[];
 	courses: CanvasCourse[];
 	enrollments: CanvasEnrollment[];
+	people: CanvasCourseUser[];
 	assignments: CanvasAssignment[];
 	modules: CanvasModule[];
+	courseHomes: CanvasCourseHome[];
 	announcements: CanvasAnnouncement[];
 	submissions: CanvasSubmission[];
 	calendarItems: CanvasCalendarItem[];

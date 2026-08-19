@@ -1,25 +1,21 @@
 {
-	"name": "@canvas-v5/canvas-sdk",
+	"name": "@canvas-v5/canvas-core",
 	"type": "module",
 	"exports": {
 		".": {
 			"default": "./src/index.ts"
-		},
-		"./*": {
-			"default": "./src/*.ts"
 		}
 	},
 	"scripts": {
-		"check-types": "tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"test": "bun test"
 	},
 	"dependencies": {
-		"@canvas-v5/canvas-core": "workspace:*",
-		"react": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@canvas-v5/config": "workspace:*",
-		"@types/react": "catalog:",
+		"@types/node": "catalog:",
 		"typescript": "catalog:"
 	}
 }

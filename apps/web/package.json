@@ -8,6 +8,7 @@
 		"dev": "vite dev"
 	},
 	"dependencies": {
+		"@canvas-v5/canvas-core": "workspace:*",
 		"@canvas-v5/api": "workspace:*",
 		"@canvas-v5/app": "workspace:*",
 		"@canvas-v5/auth": "workspace:*",
@@ -15,6 +16,7 @@
 		"@canvas-v5/db": "workspace:*",
 		"@canvas-v5/env": "workspace:*",
 		"@canvas-v5/ui": "workspace:*",
+		"@modelcontextprotocol/sdk": "1.29.0",
 		"@tailwindcss/vite": "^4.2.2",
 		"@tanstack/react-form": "^1.28.0",
 		"@tanstack/react-query": "^5.99.0",
@@ -33,6 +35,7 @@
 		"react-dom": "catalog:",
 		"sonner": "^2.0.7",
 		"tailwindcss": "^4.2.2",
+		"web-push": "^3.6.7",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
@@ -43,6 +46,7 @@
 		"@testing-library/react": "^16.3.2",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
+		"@types/web-push": "^3.6.4",
 		"@vitejs/plugin-react": "^6.0.1",
 		"jsdom": "^29.0.2",
 		"typescript": "catalog:",

@@ -1,9 +1,17 @@
 import type {
+	CanvasRecordMetadata,
+	CanvasSyncBatch,
+	CanvasSyncRepository,
+	CanvasSyncResult,
+} from "@canvas-v5/canvas-core";
+import type {
 	CanvasAccount,
 	CanvasAnnouncement,
 	CanvasAssignment,
 	CanvasCalendarItem,
 	CanvasCourse,
+	CanvasCourseHome,
+	CanvasCourseUser,
 	CanvasEnrollment,
 	CanvasModule,
 	CanvasRuntimeMode,
@@ -20,8 +28,10 @@ type StoreName =
 	| "connections"
 	| "courses"
 	| "enrollments"
+	| "people"
 	| "assignments"
 	| "modules"
+	| "courseHomes"
 	| "announcements"
 	| "submissions"
 	| "calendarItems"
@@ -34,8 +44,10 @@ const STORE_NAMES: StoreName[] = [
 	"connections",
 	"courses",
 	"enrollments",
+	"people",
 	"assignments",
 	"modules",
+	"courseHomes",
 	"announcements",
 	"submissions",
 	"calendarItems",
@@ -47,9 +59,11 @@ const STORE_NAMES: StoreName[] = [
 type StoreRecord =
 	| CanvasAccount
 	| CanvasCourse
+	| CanvasCourseUser
 	| CanvasEnrollment
 	| CanvasAssignment
 	| CanvasModule
+	| CanvasCourseHome
 	| CanvasAnnouncement
 	| CanvasSubmission
 	| CanvasCalendarItem
@@ -65,8 +79,10 @@ export function emptySnapshot(mode: CanvasRuntimeMode): CanvasRuntimeSnapshot {
 		accounts: [],
 		courses: [],
 		enrollments: [],
+		people: [],
 		assignments: [],
 		modules: [],
+		courseHomes: [],
 		announcements: [],
 		submissions: [],
 		calendarItems: [],
@@ -81,8 +97,10 @@ export function createInitialSyncScopes(): SyncScopeState[] {
 		"accounts",
 		"courses",
 		"enrollments",
+		"people",
 		"assignments",
 		"modules",
+		"course-home",
 		"announcements",
 		"submissions",
 		"calendar",
@@ -91,7 +109,7 @@ export function createInitialSyncScopes(): SyncScopeState[] {
 	return scopes.map((scope) => ({ scope, status: "idle", pendingJobs: 0 }));
 }
 
-export class CanvasIndexedDbStore {
+export class CanvasIndexedDbStore implements CanvasSyncRepository {
 	private dbPromise?: Promise<IDBDatabase>;
 
 	constructor(private readonly databaseName = "canvas-v5-sdk") {}
@@ -103,8 +121,10 @@ export class CanvasIndexedDbStore {
 			connections,
 			courses,
 			enrollments,
+			people,
 			assignments,
 			modules,
+			courseHomes,
 			announcements,
 			submissions,
 			calendarItems,
@@ -116,8 +136,10 @@ export class CanvasIndexedDbStore {
 			this.getAll<CanvasAccount>("connections"),
 			this.getAll<CanvasCourse>("courses"),
 			this.getAll<CanvasEnrollment>("enrollments"),
+			this.getAll<CanvasCourseUser>("people"),
 			this.getAll<CanvasAssignment>("assignments"),
 			this.getAll<CanvasModule>("modules"),
+			this.getAll<CanvasCourseHome>("courseHomes"),
 			this.getAll<CanvasAnnouncement>("announcements"),
 			this.getAll<CanvasSubmission>("submissions"),
 			this.getAll<CanvasCalendarItem>("calendarItems"),
@@ -127,15 +149,28 @@ export class CanvasIndexedDbStore {
 		]);
 		const normalizedConnections =
 			connections.length > 0 ? connections : accounts;
+		const activeAccount = normalizedConnections.find(
+			(account) => account.isActive,
+		);
+		const activeAccountId =
+			activeAccount?.canvasIdentityId ?? activeAccount?.connectionId;
+		const belongsToActiveAccount = (record: unknown) => {
+			if (!record || typeof record !== "object" || !activeAccountId) return true;
+			const recordAccountId = (record as { canvasAccountId?: unknown })
+				.canvasAccountId;
+			return recordAccountId === undefined || recordAccountId === activeAccountId;
+		};
 
 		return {
 			...snapshot,
 			accounts: normalizedConnections,
-			activeAccount: normalizedConnections.find((account) => account.isActive),
-			courses,
+			activeAccount,
+			courses: courses.filter(belongsToActiveAccount),
 			enrollments,
-			assignments,
+			people,
+			assignments: assignments.filter(belongsToActiveAccount),
 			modules,
+			courseHomes,
 			announcements,
 			submissions,
 			calendarItems,
@@ -163,6 +198,33 @@ export class CanvasIndexedDbStore {
 		});
 	}
 
+	async applySnapshot<T extends CanvasRecordMetadata>(
+		batch: CanvasSyncBatch<T>,
+	): Promise<CanvasSyncResult> {
+		const storeName = batch.scope;
+		const existing = await this.getAll<CanvasRecordMetadata & {
+			course_id?: number;
+		}>(storeName);
+		const scopeCourseId =
+			batch.scope === "assignments" ? Number(batch.scopeKey) : undefined;
+		const retained = existing.filter((record) => {
+			if (record.canvasAccountId !== batch.account.id) return true;
+			if (batch.scope === "courses") return false;
+			return record.course_id !== scopeCourseId;
+		});
+		await this.replaceAll(
+			storeName,
+			[...retained, ...batch.records] as unknown as StoreRecord[],
+		);
+		return {
+			scope: batch.scope,
+			scopeKey: batch.scopeKey,
+			generationId: batch.generationId,
+			observedAt: batch.observedAt,
+			recordCount: batch.records.length,
+		};
+	}
+
 	private async getAll<T>(storeName: StoreName): Promise<T[]> {
 		const db = await this.open();
 		return new Promise((resolve, reject) => {
@@ -182,7 +244,7 @@ export class CanvasIndexedDbStore {
 			);
 		}
 		this.dbPromise ??= new Promise((resolve, reject) => {
-			const request = indexedDB.open(this.databaseName, 2);
+			const request = indexedDB.open(this.databaseName, 4);
 			request.onupgradeneeded = () => {
 				const db = request.result;
 				for (const storeName of STORE_NAMES) {

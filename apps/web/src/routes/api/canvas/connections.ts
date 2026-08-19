@@ -1,12 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { auth } from "@canvas-v5/auth";
 import { db } from "@canvas-v5/db";
-import { canvasConnection } from "@canvas-v5/db/schema/canvas";
+import {
+	canvasConnection,
+	canvasCredential,
+	canvasIdentity,
+} from "@canvas-v5/db/schema/canvas";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { encryptCanvasToken } from "../../../lib/canvas-token";
+import {
+	decryptCanvasToken,
+	encryptCanvasToken,
+} from "../../../lib/canvas-token";
 
 export const Route = createFileRoute("/api/canvas/connections")({
 	server: {
@@ -22,7 +29,10 @@ export const Route = createFileRoute("/api/canvas/connections")({
 					.from(canvasConnection)
 					.where(eq(canvasConnection.userId, session.user.id));
 
-				return Response.json(rows.map((row) => toApiConnection(row)));
+				const hydratedRows = await Promise.all(
+					rows.map((row) => ensureExistingConnectionIdentity(row)),
+				);
+				return Response.json(hydratedRows.map((row) => toApiConnection(row)));
 			},
 			POST: async ({ request }) => {
 				const session = await auth.api.getSession({ headers: request.headers });
@@ -44,8 +54,17 @@ export const Route = createFileRoute("/api/canvas/connections")({
 					);
 				}
 
-				const input = normalizeConnectionInput(parsedInput);
+				const resolvedCanvasUser = await resolveCanvasUser(parsedInput);
+				const input = normalizeConnectionInput(parsedInput, resolvedCanvasUser);
 				const now = new Date();
+				const identity = input.canvasUserId
+					? await upsertCanvasIdentity({
+							userId: session.user.id,
+							canvasBaseUrl: input.canvasBaseUrl,
+							canvasUserId: input.canvasUserId,
+							label: input.label,
+						})
+					: undefined;
 				const existingConnection = await findExistingConnection(
 					session.user.id,
 					input.id,
@@ -62,6 +81,7 @@ export const Route = createFileRoute("/api/canvas/connections")({
 				const updateValues = {
 					canvasBaseUrl: input.canvasBaseUrl,
 					canvasUserId: input.canvasUserId ?? null,
+					canvasIdentityId: identity?.id ?? null,
 					label,
 					authMode: input.authMode,
 					updatedAt: now,
@@ -74,6 +94,7 @@ export const Route = createFileRoute("/api/canvas/connections")({
 						userId: session.user.id,
 						canvasBaseUrl: input.canvasBaseUrl,
 						canvasUserId: input.canvasUserId ?? null,
+						canvasIdentityId: identity?.id,
 						label,
 						authMode: input.authMode,
 						encryptedAccessToken,
@@ -90,6 +111,36 @@ export const Route = createFileRoute("/api/canvas/connections")({
 						{ error: "Connection could not be saved" },
 						{ status: 500 },
 					);
+				}
+
+				if (identity) {
+					const kind =
+						input.authMode === "canvas-session"
+							? "browser-session"
+							: input.authMode;
+					await db
+						.insert(canvasCredential)
+						.values({
+							id: `${identity.id}:${kind}`,
+							userId: session.user.id,
+							canvasIdentityId: identity.id,
+							canvasConnectionId: row.id,
+							kind,
+							encryptedAccessToken,
+							status: "active",
+							lastVerifiedAt: now,
+							lastError: null,
+						})
+						.onConflictDoUpdate({
+							target: canvasCredential.id,
+							set: {
+								canvasConnectionId: row.id,
+								...(encryptedAccessToken ? { encryptedAccessToken } : {}),
+								status: "active",
+								lastVerifiedAt: now,
+								lastError: null,
+							},
+						});
 				}
 
 				return Response.json(toApiConnection(row, true));
@@ -109,24 +160,91 @@ const connectionInput = z.object({
 	isActive: z.boolean().optional(),
 });
 
-function normalizeConnectionInput(input: z.infer<typeof connectionInput>) {
+function normalizeConnectionInput(
+	input: z.infer<typeof connectionInput>,
+	resolvedCanvasUser?: { id: string; name?: string },
+) {
 	const canvasBaseUrl = new URL(input.canvasBaseUrl).origin;
+	const canvasUserId = resolvedCanvasUser?.id ?? input.canvasUserId?.trim();
+	const identityKey = canvasUserId
+		? createIdentityKey(canvasBaseUrl, canvasUserId)
+		: undefined;
 	const id =
 		input.connectionId ??
 		input.id ??
-		(input.authMode === "canvas-session" && input.canvasUserId
-			? `${canvasBaseUrl}:${input.canvasUserId}:canvas-session`
-			: randomUUID());
+		(identityKey ? `${identityKey}:${input.authMode}` : randomUUID());
 
 	return {
 		id,
-		label: input.label.trim(),
+		label: input.label.trim() || resolvedCanvasUser?.name || canvasBaseUrl,
 		canvasBaseUrl,
-		canvasUserId: input.canvasUserId?.trim() || undefined,
+		canvasUserId: canvasUserId || undefined,
 		authMode: input.authMode,
 		accessToken: input.accessToken?.trim() || undefined,
 		isActive: input.isActive ?? true,
 	};
+}
+
+async function resolveCanvasUser(input: z.infer<typeof connectionInput>) {
+	if (input.authMode === "canvas-session") {
+		return input.canvasUserId
+			? { id: input.canvasUserId.trim(), name: input.label.trim() }
+			: undefined;
+	}
+	const accessToken = input.accessToken?.trim();
+	if (!accessToken) return undefined;
+	const canvasBaseUrl = new URL(input.canvasBaseUrl).origin;
+	const response = await fetch(
+		new URL("/api/v1/users/self/profile", canvasBaseUrl),
+		{
+			headers: {
+				Accept: "application/json",
+				Authorization: `Bearer ${accessToken}`,
+			},
+		},
+	);
+	if (!response.ok) {
+		throw new Error(`Canvas token validation failed (${response.status}).`);
+	}
+	const profile = (await response.json()) as { id?: unknown; name?: unknown };
+	if (profile.id === undefined || profile.id === null) {
+		throw new Error("Canvas token validation returned no user ID.");
+	}
+	return {
+		id: String(profile.id),
+		name: typeof profile.name === "string" ? profile.name : undefined,
+	};
+}
+
+async function upsertCanvasIdentity(input: {
+	userId: string;
+	canvasBaseUrl: string;
+	canvasUserId: string;
+	label: string;
+}) {
+	const [identity] = await db
+		.insert(canvasIdentity)
+		.values({
+			id: randomUUID(),
+			...input,
+		})
+		.onConflictDoUpdate({
+			target: [
+				canvasIdentity.userId,
+				canvasIdentity.canvasBaseUrl,
+				canvasIdentity.canvasUserId,
+			],
+			set: { label: input.label, updatedAt: new Date() },
+		})
+		.returning();
+	if (!identity) {
+		throw new Error("Canvas identity could not be saved.");
+	}
+	return identity;
+}
+
+function createIdentityKey(canvasBaseUrl: string, canvasUserId: string) {
+	return `${canvasBaseUrl}:${canvasUserId}`;
 }
 
 async function findExistingConnection(userId: string, connectionId: string) {
@@ -142,6 +260,83 @@ async function findExistingConnection(userId: string, connectionId: string) {
 	return connection;
 }
 
+async function ensureExistingConnectionIdentity(
+	row: typeof canvasConnection.$inferSelect,
+) {
+	if (row.canvasIdentityId) return row;
+	let canvasUserId = row.canvasUserId ?? undefined;
+	let profileName: string | undefined;
+	if (!canvasUserId && row.encryptedAccessToken) {
+		const response = await fetch(
+			new URL("/api/v1/users/self/profile", row.canvasBaseUrl),
+			{
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${decryptCanvasToken(row.encryptedAccessToken)}`,
+				},
+			},
+		);
+		if (response.ok) {
+			const profile = (await response.json()) as {
+				id?: unknown;
+				name?: unknown;
+			};
+			if (profile.id !== undefined && profile.id !== null) {
+				canvasUserId = String(profile.id);
+				profileName =
+					typeof profile.name === "string" ? profile.name : undefined;
+			}
+		}
+	}
+	if (!canvasUserId) return row;
+
+	const identity = await upsertCanvasIdentity({
+		userId: row.userId,
+		canvasBaseUrl: row.canvasBaseUrl,
+		canvasUserId,
+		label: row.label || profileName || row.canvasBaseUrl,
+	});
+	const [updated] = await db
+		.update(canvasConnection)
+		.set({ canvasIdentityId: identity.id, canvasUserId })
+		.where(
+			and(
+				eq(canvasConnection.id, row.id),
+				eq(canvasConnection.userId, row.userId),
+			),
+		)
+		.returning();
+	if (!updated) return row;
+	const kind =
+		updated.authMode === "canvas-session"
+			? "browser-session"
+			: updated.authMode;
+	await db
+		.insert(canvasCredential)
+		.values({
+			id: `${identity.id}:${kind}`,
+			userId: updated.userId,
+			canvasIdentityId: identity.id,
+			canvasConnectionId: updated.id,
+			kind,
+			encryptedAccessToken: updated.encryptedAccessToken,
+			status: "active",
+			lastVerifiedAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: canvasCredential.id,
+			set: {
+				canvasConnectionId: updated.id,
+				...(updated.encryptedAccessToken
+					? { encryptedAccessToken: updated.encryptedAccessToken }
+					: {}),
+				status: "active",
+				lastVerifiedAt: new Date(),
+			},
+		});
+	return updated;
+}
+
 function toApiConnection(
 	row: typeof canvasConnection.$inferSelect,
 	isActive = false,
@@ -152,6 +347,7 @@ function toApiConnection(
 		label: row.label,
 		canvasBaseUrl: row.canvasBaseUrl,
 		canvasUserId: row.canvasUserId ?? undefined,
+		canvasIdentityId: row.canvasIdentityId ?? undefined,
 		authMode: row.authMode,
 		isActive,
 	};
