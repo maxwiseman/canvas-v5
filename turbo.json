@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", ".output/**", ".vercel/output/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -37,6 +37,10 @@
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "CORS_ORIGIN",
-    "DATABASE_URL"
+    "DATABASE_URL",
+    "CANVAS_SYNC_VAPID_PUBLIC_KEY",
+    "CANVAS_SYNC_VAPID_PRIVATE_KEY",
+    "CANVAS_SYNC_VAPID_SUBJECT",
+    "CANVAS_SYNC_CRON_SECRET"
   ]
 }

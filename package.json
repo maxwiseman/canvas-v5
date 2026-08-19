@@ -36,6 +36,7 @@
   "dependencies": {
     "@canvas-v5/env": "workspace:*",
     "dotenv": "catalog:",
+    "vercel": "^59.1.4",
     "zod": "catalog:"
   },
   "devDependencies": {
