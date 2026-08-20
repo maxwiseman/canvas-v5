@@ -34,6 +34,8 @@ export interface CanvasAccount {
 	canvasBaseUrl: string;
 	authMode: "canvas-session" | "api-token" | "oauth";
 	canvasUserId?: string;
+	canvasUserName?: string;
+	canvasAvatarUrl?: string;
 	isActive: boolean;
 }
 
@@ -42,6 +44,8 @@ export interface CanvasConnectionInput {
 	canvasBaseUrl: string;
 	authMode: "canvas-session" | "api-token" | "oauth";
 	canvasUserId?: string;
+	canvasUserName?: string;
+	canvasAvatarUrl?: string;
 	accessToken?: string;
 	isActive?: boolean;
 }
@@ -127,6 +131,12 @@ export interface CanvasExternalToolTagAttributes {
 	new_tab?: boolean;
 	resource_link_id?: string;
 	[key: string]: unknown;
+}
+
+export interface CanvasExternalToolLaunch {
+	id?: string;
+	name?: string;
+	url: string;
 }
 
 export interface CanvasLockInfo {
@@ -545,6 +555,12 @@ export interface AssignmentComment {
 	canvasCourseId: number;
 	canvasAssignmentId: number;
 	content: string;
+	author: {
+		canvasIdentityId: string;
+		canvasUserId: string;
+		displayName: string;
+		avatarUrl?: string | null;
+	};
 	createdAt: string;
 	updatedAt: string;
 }
@@ -659,6 +675,7 @@ export interface OverlayTransport {
 		canvasAssignmentId: number;
 	}): Promise<AssignmentComment[]>;
 	createAssignmentComment(input: {
+		canvasUserId: string;
 		canvasDomain: string;
 		canvasCourseId: number;
 		canvasAssignmentId: number;

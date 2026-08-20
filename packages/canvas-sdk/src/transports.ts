@@ -501,6 +501,7 @@ export class HttpOverlayTransport implements OverlayTransport {
 	}
 
 	async createAssignmentComment(input: {
+		canvasUserId: string;
 		canvasDomain: string;
 		canvasCourseId: number;
 		canvasAssignmentId: number;
@@ -516,7 +517,12 @@ export class HttpOverlayTransport implements OverlayTransport {
 			},
 		);
 		if (!response.ok) {
-			throw new Error(`Assignment comment create failed (${response.status})`);
+			throw new Error(
+				await readApiError(
+					response,
+					`Assignment comment create failed (${response.status})`,
+				),
+			);
 		}
 		return (await response.json()) as AssignmentComment;
 	}
@@ -609,15 +615,22 @@ export class LocalOverlayTransport implements OverlayTransport {
 	}
 
 	async createAssignmentComment(input: {
+		canvasUserId: string;
 		canvasDomain: string;
 		canvasCourseId: number;
 		canvasAssignmentId: number;
 		content: string;
 	}): Promise<AssignmentComment> {
 		const now = new Date().toISOString();
+		const { canvasUserId, ...target } = input;
 		const comment: AssignmentComment = {
 			id: crypto.randomUUID(),
-			...input,
+			...target,
+			author: {
+				canvasIdentityId: canvasUserId,
+				canvasUserId,
+				displayName: "Mock Canvas User",
+			},
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -641,4 +654,15 @@ function parseNextLink(linkHeader: string | null) {
 		}
 	}
 	return undefined;
+}
+
+async function readApiError(response: Response, fallback: string) {
+	const body = await response.text();
+	if (!body) return fallback;
+	try {
+		const parsed = JSON.parse(body) as { error?: unknown };
+		return typeof parsed.error === "string" ? parsed.error : fallback;
+	} catch {
+		return body;
+	}
 }

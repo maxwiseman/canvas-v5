@@ -63,6 +63,8 @@ export const Route = createFileRoute("/api/canvas/connections")({
 							canvasBaseUrl: input.canvasBaseUrl,
 							canvasUserId: input.canvasUserId,
 							label: input.label,
+							displayName: input.canvasUserName,
+							avatarUrl: input.canvasAvatarUrl,
 						})
 					: undefined;
 				const existingConnection = await findExistingConnection(
@@ -143,7 +145,7 @@ export const Route = createFileRoute("/api/canvas/connections")({
 						});
 				}
 
-				return Response.json(toApiConnection(row, true));
+				return Response.json(toApiConnection(row, true, identity));
 			},
 		},
 	},
@@ -155,6 +157,8 @@ const connectionInput = z.object({
 	label: z.string().min(1),
 	canvasBaseUrl: z.string().trim().url(),
 	canvasUserId: z.string().optional(),
+	canvasUserName: z.string().optional(),
+	canvasAvatarUrl: z.string().trim().url().optional(),
 	authMode: z.enum(["canvas-session", "api-token", "oauth"]),
 	accessToken: z.string().optional(),
 	isActive: z.boolean().optional(),
@@ -162,7 +166,7 @@ const connectionInput = z.object({
 
 function normalizeConnectionInput(
 	input: z.infer<typeof connectionInput>,
-	resolvedCanvasUser?: { id: string; name?: string },
+	resolvedCanvasUser?: CanvasProfile,
 ) {
 	const canvasBaseUrl = new URL(input.canvasBaseUrl).origin;
 	const canvasUserId = resolvedCanvasUser?.id ?? input.canvasUserId?.trim();
@@ -179,6 +183,11 @@ function normalizeConnectionInput(
 		label: input.label.trim() || resolvedCanvasUser?.name || canvasBaseUrl,
 		canvasBaseUrl,
 		canvasUserId: canvasUserId || undefined,
+		canvasUserName:
+			resolvedCanvasUser?.name ?? (input.canvasUserName?.trim() || undefined),
+		canvasAvatarUrl:
+			resolvedCanvasUser?.avatarUrl ??
+			(input.canvasAvatarUrl?.trim() || undefined),
 		authMode: input.authMode,
 		accessToken: input.accessToken?.trim() || undefined,
 		isActive: input.isActive ?? true,
@@ -188,7 +197,11 @@ function normalizeConnectionInput(
 async function resolveCanvasUser(input: z.infer<typeof connectionInput>) {
 	if (input.authMode === "canvas-session") {
 		return input.canvasUserId
-			? { id: input.canvasUserId.trim(), name: input.label.trim() }
+			? {
+					id: input.canvasUserId.trim(),
+					name: input.canvasUserName?.trim() || input.label.trim(),
+					avatarUrl: input.canvasAvatarUrl?.trim() || undefined,
+				}
 			: undefined;
 	}
 	const accessToken = input.accessToken?.trim();
@@ -206,14 +219,26 @@ async function resolveCanvasUser(input: z.infer<typeof connectionInput>) {
 	if (!response.ok) {
 		throw new Error(`Canvas token validation failed (${response.status}).`);
 	}
-	const profile = (await response.json()) as { id?: unknown; name?: unknown };
+	const profile = (await response.json()) as {
+		id?: unknown;
+		name?: unknown;
+		avatar_url?: unknown;
+	};
 	if (profile.id === undefined || profile.id === null) {
 		throw new Error("Canvas token validation returned no user ID.");
 	}
 	return {
 		id: String(profile.id),
 		name: typeof profile.name === "string" ? profile.name : undefined,
+		avatarUrl:
+			typeof profile.avatar_url === "string" ? profile.avatar_url : undefined,
 	};
+}
+
+interface CanvasProfile {
+	id: string;
+	name?: string;
+	avatarUrl?: string;
 }
 
 async function upsertCanvasIdentity(input: {
@@ -221,6 +246,8 @@ async function upsertCanvasIdentity(input: {
 	canvasBaseUrl: string;
 	canvasUserId: string;
 	label: string;
+	displayName?: string;
+	avatarUrl?: string;
 }) {
 	const [identity] = await db
 		.insert(canvasIdentity)
@@ -234,7 +261,16 @@ async function upsertCanvasIdentity(input: {
 				canvasIdentity.canvasBaseUrl,
 				canvasIdentity.canvasUserId,
 			],
-			set: { label: input.label, updatedAt: new Date() },
+			set: {
+				label: input.label,
+				...(input.displayName !== undefined
+					? { displayName: input.displayName }
+					: {}),
+				...(input.avatarUrl !== undefined
+					? { avatarUrl: input.avatarUrl }
+					: {}),
+				updatedAt: new Date(),
+			},
 		})
 		.returning();
 	if (!identity) {
@@ -263,9 +299,53 @@ async function findExistingConnection(userId: string, connectionId: string) {
 async function ensureExistingConnectionIdentity(
 	row: typeof canvasConnection.$inferSelect,
 ) {
-	if (row.canvasIdentityId) return row;
+	if (row.canvasIdentityId) {
+		const [identity] = await db
+			.select({
+				displayName: canvasIdentity.displayName,
+				avatarUrl: canvasIdentity.avatarUrl,
+			})
+			.from(canvasIdentity)
+			.where(eq(canvasIdentity.id, row.canvasIdentityId));
+		if (
+			!identity ||
+			(identity.displayName && identity.avatarUrl) ||
+			!row.encryptedAccessToken
+		) {
+			return row;
+		}
+
+		const response = await fetch(
+			new URL("/api/v1/users/self/profile", row.canvasBaseUrl),
+			{
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${decryptCanvasToken(row.encryptedAccessToken)}`,
+				},
+			},
+		);
+		if (!response.ok) return row;
+		const profile = (await response.json()) as {
+			name?: unknown;
+			avatar_url?: unknown;
+		};
+		await db
+			.update(canvasIdentity)
+			.set({
+				...(typeof profile.name === "string"
+					? { displayName: profile.name }
+					: {}),
+				...(typeof profile.avatar_url === "string"
+					? { avatarUrl: profile.avatar_url }
+					: {}),
+				updatedAt: new Date(),
+			})
+			.where(eq(canvasIdentity.id, row.canvasIdentityId));
+		return row;
+	}
 	let canvasUserId = row.canvasUserId ?? undefined;
 	let profileName: string | undefined;
+	let profileAvatarUrl: string | undefined;
 	if (!canvasUserId && row.encryptedAccessToken) {
 		const response = await fetch(
 			new URL("/api/v1/users/self/profile", row.canvasBaseUrl),
@@ -280,11 +360,16 @@ async function ensureExistingConnectionIdentity(
 			const profile = (await response.json()) as {
 				id?: unknown;
 				name?: unknown;
+				avatar_url?: unknown;
 			};
 			if (profile.id !== undefined && profile.id !== null) {
 				canvasUserId = String(profile.id);
 				profileName =
 					typeof profile.name === "string" ? profile.name : undefined;
+				profileAvatarUrl =
+					typeof profile.avatar_url === "string"
+						? profile.avatar_url
+						: undefined;
 			}
 		}
 	}
@@ -295,6 +380,8 @@ async function ensureExistingConnectionIdentity(
 		canvasBaseUrl: row.canvasBaseUrl,
 		canvasUserId,
 		label: row.label || profileName || row.canvasBaseUrl,
+		displayName: profileName,
+		avatarUrl: profileAvatarUrl,
 	});
 	const [updated] = await db
 		.update(canvasConnection)
@@ -340,6 +427,7 @@ async function ensureExistingConnectionIdentity(
 function toApiConnection(
 	row: typeof canvasConnection.$inferSelect,
 	isActive = false,
+	identity?: typeof canvasIdentity.$inferSelect,
 ) {
 	return {
 		id: row.id,
@@ -348,6 +436,8 @@ function toApiConnection(
 		canvasBaseUrl: row.canvasBaseUrl,
 		canvasUserId: row.canvasUserId ?? undefined,
 		canvasIdentityId: row.canvasIdentityId ?? undefined,
+		canvasUserName: identity?.displayName ?? undefined,
+		canvasAvatarUrl: identity?.avatarUrl ?? undefined,
 		authMode: row.authMode,
 		isActive,
 	};

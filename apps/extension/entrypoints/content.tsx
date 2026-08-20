@@ -267,6 +267,7 @@ class ExtensionOverlayTransport implements OverlayTransport {
 	}
 
 	async createAssignmentComment(input: {
+		canvasUserId: string;
 		canvasDomain: string;
 		canvasCourseId: number;
 		canvasAssignmentId: number;
@@ -277,7 +278,12 @@ class ExtensionOverlayTransport implements OverlayTransport {
 			{ method: "POST", body: input },
 		);
 		if (!response.ok) {
-			throw new Error(`Assignment comment create failed (${response.status})`);
+			throw new Error(
+				getAppFetchError(
+					response.body,
+					`Assignment comment create failed (${response.status})`,
+				),
+			);
 		}
 		return response.body;
 	}
@@ -321,6 +327,18 @@ async function probeCanvas(canvasBaseUrl: string) {
 	} catch {
 		return { ok: false };
 	}
+}
+
+function getAppFetchError(body: unknown, fallback: string) {
+	if (typeof body === "string" && body.trim()) {
+		return body;
+	}
+	return typeof body === "object" &&
+		body !== null &&
+		"error" in body &&
+		typeof body.error === "string"
+		? body.error
+		: fallback;
 }
 
 function showCanvasV5Banner(options: {

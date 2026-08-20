@@ -28,6 +28,8 @@ export const canvasIdentity = pgTable(
 		canvasBaseUrl: text("canvas_base_url").notNull(),
 		canvasUserId: text("canvas_user_id").notNull(),
 		label: text("label").notNull(),
+		displayName: text("display_name"),
+		avatarUrl: text("avatar_url"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
@@ -330,6 +332,9 @@ export const canvasAssignmentComment = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
+		canvasIdentityId: text("canvas_identity_id")
+			.notNull()
+			.references(() => canvasIdentity.id, { onDelete: "cascade" }),
 		canvasDomain: text("canvas_domain").notNull(),
 		canvasCourseId: integer("canvas_course_id").notNull(),
 		canvasAssignmentId: integer("canvas_assignment_id").notNull(),
@@ -347,6 +352,9 @@ export const canvasAssignmentComment = pgTable(
 			table.canvasCourseId,
 			table.canvasAssignmentId,
 			table.createdAt,
+		),
+		index("canvas_assignment_comment_identity_id_idx").on(
+			table.canvasIdentityId,
 		),
 	],
 );
@@ -381,6 +389,10 @@ export const canvasAssignmentCommentRelations = relations(
 		user: one(user, {
 			fields: [canvasAssignmentComment.userId],
 			references: [user.id],
+		}),
+		identity: one(canvasIdentity, {
+			fields: [canvasAssignmentComment.canvasIdentityId],
+			references: [canvasIdentity.id],
 		}),
 	}),
 );

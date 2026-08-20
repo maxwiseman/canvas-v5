@@ -7,6 +7,11 @@ import {
 	useSubmission,
 	useSyncStatus,
 } from "@canvas-v5/canvas-sdk";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@canvas-v5/ui/components/avatar";
 import { Badge } from "@canvas-v5/ui/components/badge";
 import { Button } from "@canvas-v5/ui/components/button";
 import {
@@ -134,6 +139,9 @@ function AssignmentRoute() {
 		(type): type is CanvasSubmissionInput["type"] =>
 			type === "online_text_entry" || type === "online_url",
 	);
+	const externalToolOnly =
+		assignment.submission_types?.length === 1 &&
+		assignment.submission_types[0] === "external_tool";
 	const requiresCanvas = (assignment.submission_types ?? []).some(
 		(type) =>
 			!availableTypes.includes(type as CanvasSubmissionInput["type"]) &&
@@ -171,6 +179,15 @@ function AssignmentRoute() {
 						<CanvasHTML>{assignment.description ?? undefined}</CanvasHTML>
 					)}
 
+					{externalToolOnly && !assignment.locked_for_user ? (
+						<ExternalToolFrame
+							assignmentId={numericAssignmentId}
+							canvasUrl={assignment.html_url}
+							courseId={numericCourseId}
+							name={assignment.name}
+						/>
+					) : null}
+
 					{submission?.submission_comments?.length ? (
 						<div className="mt-8 flex flex-col gap-3">
 							<h2 className="font-medium text-sm">
@@ -198,11 +215,21 @@ function AssignmentRoute() {
 						<h2 className="font-medium text-sm">Comments</h2>
 						{assignmentComments.map((comment) => (
 							<Card key={comment.id} size="sm">
-								<CardHeader>
-									<CardTitle>You</CardTitle>
-									<CardDescription>
-										{formatDateTime(comment.createdAt)}
-									</CardDescription>
+								<CardHeader className="flex flex-row items-center gap-3">
+									<Avatar>
+										{comment.author.avatarUrl ? (
+											<AvatarImage alt="" src={comment.author.avatarUrl} />
+										) : null}
+										<AvatarFallback>
+											{initials(comment.author.displayName)}
+										</AvatarFallback>
+									</Avatar>
+									<div className="min-w-0">
+										<CardTitle>{comment.author.displayName}</CardTitle>
+										<CardDescription>
+											{formatDateTime(comment.createdAt)}
+										</CardDescription>
+									</div>
 								</CardHeader>
 								<CardContent className="whitespace-pre-wrap">
 									{comment.content}
@@ -269,7 +296,9 @@ function AssignmentRoute() {
 						</CardContent>
 					</Card>
 
-					{canSubmit && (availableTypes.length > 0 || requiresCanvas) ? (
+					{canSubmit &&
+					!externalToolOnly &&
+					(availableTypes.length > 0 || requiresCanvas) ? (
 						<SubmissionCard
 							assignmentId={Number(assignmentId)}
 							availableTypes={availableTypes}
@@ -282,6 +311,94 @@ function AssignmentRoute() {
 				</div>
 			</div>
 		</PageWrapper>
+	);
+}
+
+function ExternalToolFrame({
+	courseId,
+	assignmentId,
+	name,
+	canvasUrl,
+}: {
+	courseId: number;
+	assignmentId: number;
+	name: string;
+	canvasUrl?: string;
+}) {
+	const runtime = useCanvasRuntime();
+	const [launchUrl, setLaunchUrl] = useState<string>();
+	const [error, setError] = useState<string>();
+
+	useEffect(() => {
+		let cancelled = false;
+		setLaunchUrl(undefined);
+		setError(undefined);
+
+		void runtime
+			.getExternalToolLaunch(courseId, assignmentId)
+			.then((launch) => {
+				if (!cancelled) setLaunchUrl(launch.url);
+			})
+			.catch((launchError) => {
+				if (!cancelled) {
+					setError(
+						launchError instanceof Error
+							? launchError.message
+							: "Unable to open this external tool.",
+					);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [assignmentId, courseId, runtime]);
+
+	if (error) {
+		return (
+			<div className="mt-8 flex flex-col items-start gap-3 rounded-lg border p-4">
+				<p className="text-destructive text-sm">{error}</p>
+				{canvasUrl ? (
+					<Button
+						render={
+							<a
+								aria-label="Open this submission tool in Canvas"
+								href={withNativeFallback(canvasUrl)}
+								rel="noreferrer noopener"
+								target="_blank"
+							>
+								<span className="sr-only">
+									Open this submission tool in Canvas
+								</span>
+							</a>
+						}
+						variant="outline"
+					>
+						<ExternalLink data-icon="inline-start" />
+						Open in Canvas
+					</Button>
+				) : null}
+			</div>
+		);
+	}
+
+	if (!launchUrl) {
+		return (
+			<div className="mt-8 flex min-h-48 items-center justify-center rounded-lg border">
+				<LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+				<span className="sr-only">Loading external submission tool</span>
+			</div>
+		);
+	}
+
+	return (
+		<iframe
+			allow="camera; microphone; display-capture; clipboard-read; clipboard-write"
+			allowFullScreen
+			className="mt-8 min-h-[44rem] w-full rounded-lg border bg-background"
+			src={launchUrl}
+			title={`${name} submission tool`}
+		/>
 	);
 }
 
@@ -473,6 +590,15 @@ function Detail({ icon, label }: { icon: React.ReactNode; label: string }) {
 			<span>{label}</span>
 		</div>
 	);
+}
+
+function initials(name: string) {
+	return name
+		.split(/\s+/)
+		.slice(0, 2)
+		.map((part) => part[0])
+		.join("")
+		.toUpperCase();
 }
 
 function formatDueDate(value?: string | null) {

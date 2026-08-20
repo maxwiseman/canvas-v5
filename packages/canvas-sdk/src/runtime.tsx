@@ -30,6 +30,7 @@ import type {
 	CanvasDiscussionEntry,
 	CanvasDiscussionTopic,
 	CanvasEnrollment,
+	CanvasExternalToolLaunch,
 	CanvasFile,
 	CanvasModule,
 	CanvasModuleItem,
@@ -1139,6 +1140,36 @@ export class CanvasRuntime {
 		}
 	}
 
+	async getExternalToolLaunch(courseId: number, assignmentId: number) {
+		if (
+			this.snapshot.mode === "extension" ||
+			this.snapshot.activeAccount?.authMode === "canvas-session"
+		) {
+			const canvasBaseUrl =
+				this.snapshot.canvasAuth.status === "authenticated"
+					? this.snapshot.canvasAuth.baseUrl
+					: this.snapshot.activeAccount?.canvasBaseUrl;
+			if (!canvasBaseUrl) {
+				throw new Error("The active Canvas session is not ready.");
+			}
+			return {
+				url: new URL(
+					`/courses/${courseId}/assignments/${assignmentId}/tool_launch`,
+					canvasBaseUrl,
+				).toString(),
+			} satisfies CanvasExternalToolLaunch;
+		}
+
+		const params = new URLSearchParams({
+			assignment_id: String(assignmentId),
+			launch_type: "assessment",
+		});
+
+		return this.options.canvasTransport.request<CanvasExternalToolLaunch>(
+			`/api/v1/courses/${courseId}/external_tools/sessionless_launch?${params.toString()}`,
+		);
+	}
+
 	async listAssignmentComments(
 		courseId: number,
 		assignmentId: number,
@@ -1154,6 +1185,15 @@ export class CanvasRuntime {
 		content: string,
 	): Promise<AssignmentComment> {
 		return this.options.overlayTransport.createAssignmentComment({
+			canvasUserId:
+				this.snapshot.activeAccount?.canvasUserId ??
+				(this.snapshot.canvasAuth.status === "authenticated"
+					? String(this.snapshot.canvasAuth.user.id)
+					: this.snapshot.mode === "mock"
+						? "mock-canvas-user"
+						: (() => {
+								throw new Error("The active Canvas user is not ready.");
+							})()),
 			...this.assignmentCommentTarget(courseId, assignmentId),
 			content,
 		});
@@ -1390,6 +1430,8 @@ export class CanvasRuntime {
 			canvasBaseUrl: canvasAuth.baseUrl,
 			authMode: "canvas-session" as const,
 			canvasUserId: String(canvasAuth.user.id),
+			canvasUserName: canvasAuth.user.name,
+			canvasAvatarUrl: canvasAuth.user.avatar_url,
 			isActive: true,
 		};
 	}

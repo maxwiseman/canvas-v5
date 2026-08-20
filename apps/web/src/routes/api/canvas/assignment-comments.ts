@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { auth } from "@canvas-v5/auth";
 import { db } from "@canvas-v5/db";
-import { canvasAssignmentComment } from "@canvas-v5/db/schema/canvas";
+import {
+	canvasAssignmentComment,
+	canvasIdentity,
+} from "@canvas-v5/db/schema/canvas";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -33,12 +36,26 @@ export const Route = createFileRoute("/api/canvas/assignment-comments")({
 
 				const target = normalizeTarget(parsed.data);
 				const rows = await db
-					.select()
+					.select({
+						comment: canvasAssignmentComment,
+						identity: canvasIdentity,
+					})
 					.from(canvasAssignmentComment)
-					.where(targetFilter(session.user.id, target))
+					.innerJoin(
+						canvasIdentity,
+						eq(canvasAssignmentComment.canvasIdentityId, canvasIdentity.id),
+					)
+					.where(
+						and(
+							targetFilter(session.user.id, target),
+							eq(canvasIdentity.userId, session.user.id),
+						),
+					)
 					.orderBy(asc(canvasAssignmentComment.createdAt));
 
-				return Response.json(rows.map(toApiComment));
+				return Response.json(
+					rows.map(({ comment, identity }) => toApiComment(comment, identity)),
+				);
 			},
 			POST: async ({ request }) => {
 				const session = await auth.api.getSession({ headers: request.headers });
@@ -58,11 +75,23 @@ export const Route = createFileRoute("/api/canvas/assignment-comments")({
 				}
 
 				const target = normalizeTarget(parsed.data);
+				const identity = await findOwnedIdentity(
+					session.user.id,
+					target.canvasDomain,
+					parsed.data.canvasUserId,
+				);
+				if (!identity) {
+					return Response.json(
+						{ error: "Canvas identity not found" },
+						{ status: 404 },
+					);
+				}
 				const [row] = await db
 					.insert(canvasAssignmentComment)
 					.values({
 						id: randomUUID(),
 						userId: session.user.id,
+						canvasIdentityId: identity.id,
 						...target,
 						content: parsed.data.content.trim(),
 					})
@@ -74,7 +103,7 @@ export const Route = createFileRoute("/api/canvas/assignment-comments")({
 					);
 				}
 
-				return Response.json(toApiComment(row), { status: 201 });
+				return Response.json(toApiComment(row, identity), { status: 201 });
 			},
 		},
 	},
@@ -92,6 +121,7 @@ const assignmentTarget = z.object({
 });
 
 const assignmentCommentInput = assignmentTarget.extend({
+	canvasUserId: z.string().min(1),
 	content: z.string().trim().min(1).max(10_000),
 });
 
@@ -114,13 +144,42 @@ function targetFilter(userId: string, target: AssignmentTarget) {
 	);
 }
 
-function toApiComment(row: typeof canvasAssignmentComment.$inferSelect) {
+async function findOwnedIdentity(
+	userId: string,
+	canvasDomain: string,
+	canvasUserId: string,
+) {
+	const identities = await db
+		.select()
+		.from(canvasIdentity)
+		.where(
+			and(
+				eq(canvasIdentity.userId, userId),
+				eq(canvasIdentity.canvasUserId, canvasUserId),
+			),
+		);
+	return identities.find(
+		(identity) =>
+			new URL(identity.canvasBaseUrl).hostname.toLowerCase() === canvasDomain,
+	);
+}
+
+function toApiComment(
+	row: typeof canvasAssignmentComment.$inferSelect,
+	identity: typeof canvasIdentity.$inferSelect,
+) {
 	return {
 		id: row.id,
 		canvasDomain: row.canvasDomain,
 		canvasCourseId: row.canvasCourseId,
 		canvasAssignmentId: row.canvasAssignmentId,
 		content: row.content,
+		author: {
+			canvasIdentityId: identity.id,
+			canvasUserId: identity.canvasUserId,
+			displayName: identity.displayName ?? identity.label,
+			avatarUrl: identity.avatarUrl,
+		},
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 	};
