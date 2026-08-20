@@ -741,6 +741,7 @@ export class CanvasRuntime {
 				id: `${courseId}:${record.id}`,
 				canvas_tab_id: record.id,
 				course_id: courseId,
+				label: normalizeCourseTabLabel(record.id, record.label),
 			}));
 			const courseTabs = [
 				...this.snapshot.courseTabs.filter((tab) => tab.course_id !== courseId),
@@ -1194,17 +1195,38 @@ export class CanvasRuntime {
 	}
 
 	async updateCourseIcon(canvasCourseId: number, icon: string | null) {
+		return this.updateCourseOverlay(canvasCourseId, { icon });
+	}
+
+	async updateCourseHiddenTabs(canvasCourseId: number, hiddenTabIds: string[]) {
+		return this.updateCourseOverlay(canvasCourseId, {
+			hiddenTabIds: [
+				...new Set(
+					hiddenTabIds
+						.map((tabId) => tabId.trim())
+						.filter((tabId) => tabId && tabId !== "home"),
+				),
+			],
+		});
+	}
+
+	private async updateCourseOverlay(
+		canvasCourseId: number,
+		patch: Pick<CourseOverlay, "icon" | "hiddenTabIds">,
+	) {
 		const activeAccount = this.snapshot.activeAccount;
 		if (!activeAccount) {
 			throw new Error("No active Canvas account.");
 		}
 
 		const now = new Date().toISOString();
+		const existingOverlay = selectCourseOverlay(this.snapshot, canvasCourseId);
 		const optimisticOverlay: CourseOverlay = {
+			...existingOverlay,
 			id: `${activeAccount.connectionId}:${canvasCourseId}`,
 			canvasConnectionId: activeAccount.connectionId,
 			canvasCourseId,
-			icon,
+			...patch,
 			updatedAt: now,
 		};
 		const mutation: QueuedMutation = {
@@ -1215,7 +1237,7 @@ export class CanvasRuntime {
 				canvasConnectionId: activeAccount.connectionId,
 				canvasCourseId,
 			},
-			payload: { icon },
+			payload: patch,
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -1243,7 +1265,7 @@ export class CanvasRuntime {
 				await this.options.overlayTransport.updateCourseOverlay({
 					canvasConnectionId: activeAccount.connectionId,
 					canvasCourseId,
-					icon,
+					...patch,
 				});
 			const savedOverlays = upsertOverlay(
 				this.snapshot.courseOverlays,
@@ -1754,8 +1776,40 @@ export function useCourseTabs(courseId: number | string) {
 	}, [normalizedCourseId, runtime]);
 	return tabs
 		.filter((tab) => tab.course_id === normalizedCourseId && !tab.hidden)
-		.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+		.sort((a, b) => {
+			const externalOrder =
+				Number(isExternalCourseTab(a)) - Number(isExternalCourseTab(b));
+			return externalOrder || (a.position ?? 0) - (b.position ?? 0);
+		});
 }
+
+function isExternalCourseTab(tab: CanvasCourseTab) {
+	const tabId = tab.canvas_tab_id ?? tab.id;
+	return tab.type === "external" || tabId.includes("context_external_tool_");
+}
+
+function normalizeCourseTabLabel(id: string, label?: string | null) {
+	const normalizedLabel = label?.trim();
+	if (normalizedLabel) return normalizedLabel;
+	return defaultCourseTabLabels[id] ?? "External tool";
+}
+
+const defaultCourseTabLabels: Record<string, string> = {
+	home: "Overview",
+	announcements: "Announcements",
+	modules: "Modules",
+	assignments: "Assignments",
+	quizzes: "Quizzes",
+	pages: "Pages",
+	discussions: "Discussions",
+	files: "Files",
+	people: "People",
+	grades: "Grades",
+	syllabus: "Syllabus",
+	collaborations: "Collaborations",
+	conferences: "Conferences",
+	outcomes: "Outcomes",
+};
 
 export function useSubmission(
 	courseId: number | string,
@@ -1847,6 +1901,19 @@ export function useUpdateCourseIcon() {
 			runtime.updateCourseIcon(courseId, icon),
 		[runtime],
 	);
+}
+
+export function useCourseSidebarPreferences(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const normalizedCourseId = Number(courseId);
+	const overlay = useCourseOverlay(normalizedCourseId);
+	const hiddenTabIds = overlay?.hiddenTabIds ?? [];
+	const setHiddenTabIds = useCallback(
+		(tabIds: string[]) =>
+			runtime.updateCourseHiddenTabs(normalizedCourseId, tabIds),
+		[normalizedCourseId, runtime],
+	);
+	return { hiddenTabIds, setHiddenTabIds };
 }
 
 export function useCanvasCollection<T>(

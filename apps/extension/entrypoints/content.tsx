@@ -232,6 +232,7 @@ class ExtensionOverlayTransport implements OverlayTransport {
 		canvasConnectionId: string;
 		canvasCourseId: number;
 		icon?: string | null;
+		hiddenTabIds?: string[];
 	}): Promise<CourseOverlay> {
 		const response = await this.appFetch<CourseOverlay>(
 			"/api/canvas/course-overlays",

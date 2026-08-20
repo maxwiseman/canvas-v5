@@ -461,6 +461,7 @@ export class HttpOverlayTransport implements OverlayTransport {
 		canvasConnectionId: string;
 		canvasCourseId: number;
 		icon?: string | null;
+		hiddenTabIds?: string[];
 	}): Promise<CourseOverlay> {
 		const response = await fetch(
 			new URL("/api/canvas/course-overlays", this.baseUrl),
@@ -525,12 +526,22 @@ export class LocalOverlayTransport implements OverlayTransport {
 		canvasConnectionId: string;
 		canvasCourseId: number;
 		icon?: string | null;
+		hiddenTabIds?: string[];
 	}): Promise<CourseOverlay> {
+		const existingOverlay = this.overlays.find(
+			(item) =>
+				item.canvasConnectionId === input.canvasConnectionId &&
+				item.canvasCourseId === input.canvasCourseId,
+		);
 		const overlay = {
+			...existingOverlay,
 			id: `${input.canvasConnectionId}:${input.canvasCourseId}`,
 			canvasConnectionId: input.canvasConnectionId,
 			canvasCourseId: input.canvasCourseId,
-			icon: input.icon,
+			...(input.icon !== undefined ? { icon: input.icon } : {}),
+			...(input.hiddenTabIds !== undefined
+				? { hiddenTabIds: input.hiddenTabIds }
+				: {}),
 			updatedAt: new Date().toISOString(),
 		};
 		this.overlays = [

@@ -300,6 +300,10 @@ export const canvasCourseOverlay = pgTable(
 			.references(() => canvasConnection.id, { onDelete: "cascade" }),
 		canvasCourseId: integer("canvas_course_id").notNull(),
 		icon: text("icon").$type<IconId | null>(),
+		hiddenTabIds: jsonb("hidden_tab_ids")
+			.$type<string[]>()
+			.default([])
+			.notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()

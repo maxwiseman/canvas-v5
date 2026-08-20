@@ -116,7 +116,9 @@ export function AppSidebar() {
 													/>
 												}
 											>
-												{course.name}
+												<span className="min-w-0 flex-1 truncate">
+													{course.name}
+												</span>
 											</SidebarMenuButton>
 											<SidebarMenuAction
 												render={

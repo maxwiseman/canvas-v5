@@ -57,6 +57,7 @@ export const Route = createFileRoute("/api/canvas/course-overlays")({
 						canvasConnectionId: input.canvasConnectionId,
 						canvasCourseId: input.canvasCourseId,
 						icon: input.icon ?? null,
+						hiddenTabIds: input.hiddenTabIds ?? [],
 						updatedAt: now,
 					})
 					.onConflictDoUpdate({
@@ -66,7 +67,10 @@ export const Route = createFileRoute("/api/canvas/course-overlays")({
 							canvasCourseOverlay.canvasCourseId,
 						],
 						set: {
-							icon: input.icon ?? null,
+							...(input.icon !== undefined ? { icon: input.icon } : {}),
+							...(input.hiddenTabIds !== undefined
+								? { hiddenTabIds: input.hiddenTabIds }
+								: {}),
 							updatedAt: now,
 						},
 					})
@@ -120,11 +124,17 @@ const iconIds = [
 	"earth",
 ] as const satisfies readonly IconId[];
 
-const courseOverlayInput = z.object({
-	canvasConnectionId: z.string().min(1),
-	canvasCourseId: z.number().int(),
-	icon: z.enum(iconIds).nullable().optional(),
-});
+const courseOverlayInput = z
+	.object({
+		canvasConnectionId: z.string().min(1),
+		canvasCourseId: z.number().int(),
+		icon: z.enum(iconIds).nullable().optional(),
+		hiddenTabIds: z.array(z.string().min(1).max(200)).max(200).optional(),
+	})
+	.refine(
+		(input) => input.icon !== undefined || input.hiddenTabIds !== undefined,
+		"At least one overlay field is required",
+	);
 
 async function findConnectionForUser(userId: string, connectionId: string) {
 	const [connection] = await db
@@ -145,6 +155,7 @@ function toApiOverlay(row: typeof canvasCourseOverlay.$inferSelect) {
 		canvasConnectionId: row.canvasConnectionId,
 		canvasCourseId: row.canvasCourseId,
 		icon: row.icon,
+		hiddenTabIds: row.hiddenTabIds,
 		updatedAt: row.updatedAt.toISOString(),
 	};
 }

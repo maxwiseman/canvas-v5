@@ -450,7 +450,7 @@ export interface CanvasCourseTab extends Record<string, unknown> {
 	id: string;
 	canvas_tab_id?: string;
 	course_id: number;
-	label: string;
+	label?: string | null;
 	position?: number;
 	hidden?: boolean;
 	visibility?: string;
@@ -536,6 +536,7 @@ export interface CourseOverlay {
 	canvasConnectionId: string;
 	canvasCourseId: number;
 	icon?: string | null;
+	hiddenTabIds?: string[];
 	updatedAt: string;
 }
 
@@ -641,5 +642,6 @@ export interface OverlayTransport {
 		canvasConnectionId: string;
 		canvasCourseId: number;
 		icon?: string | null;
+		hiddenTabIds?: string[];
 	}): Promise<CourseOverlay>;
 }
