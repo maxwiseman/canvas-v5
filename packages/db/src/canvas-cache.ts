@@ -6,7 +6,7 @@ import type {
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
 } from "@canvas-v5/canvas-core";
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 import type { CanvasDb } from "./index";
 import {
@@ -100,105 +100,54 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 
 	private async applyCourses(batch: CanvasSyncBatch<NormalizedCanvasCourse>) {
 		const observedAt = new Date(batch.observedAt);
-		await this.database.transaction(
-			async (transaction) => {
-				const [currentState] = await transaction
-					.select({ observedAt: canvasSyncState.observedAt })
-					.from(canvasSyncState)
-					.where(
-						and(
-							eq(canvasSyncState.canvasIdentityId, batch.account.id),
-							eq(canvasSyncState.scope, batch.scope),
-							eq(canvasSyncState.scopeKey, batch.scopeKey ?? ""),
-						),
-					);
-				if (
-					currentState?.observedAt &&
-					currentState.observedAt.getTime() > observedAt.getTime()
-				) {
-					return;
-				}
-				if (batch.records.length > 0) {
-					await transaction
-						.insert(canvasCachedCourse)
-						.values(
-							batch.records.map((course) => ({
-								id: `${batch.account.id}:${course.id}`,
-								userId: this.userId,
-								canvasIdentityId: batch.account.id,
-								canvasCourseId: course.id,
-								payload: course,
-								contentHash: course.contentHash,
-								generationId: batch.generationId,
-								observedAt,
-								deletedAt: null,
-							})),
-						)
-						.onConflictDoUpdate({
-							target: [
-								canvasCachedCourse.canvasIdentityId,
-								canvasCachedCourse.canvasCourseId,
-							],
-							set: {
-								generationId: batch.generationId,
-								observedAt,
-								deletedAt: null,
-							},
-						});
+		const expireMissing = this.database
+			.update(canvasCachedCourse)
+			.set({ deletedAt: observedAt })
+			.where(
+				and(
+					eq(canvasCachedCourse.canvasIdentityId, batch.account.id),
+					ne(canvasCachedCourse.generationId, batch.generationId),
+					lte(canvasCachedCourse.observedAt, observedAt),
+					isNull(canvasCachedCourse.deletedAt),
+				),
+			);
+		const updateState = this.syncStateQuery(batch, observedAt);
 
-					for (const course of batch.records) {
-						await transaction
-							.update(canvasCachedCourse)
-							.set({
-								payload: course,
-								contentHash: course.contentHash,
-							})
-							.where(
-								and(
-									eq(canvasCachedCourse.canvasIdentityId, batch.account.id),
-									eq(canvasCachedCourse.canvasCourseId, course.id),
-								),
-							);
-					}
-				}
+		if (batch.records.length === 0) {
+			await this.database.batch([expireMissing, updateState]);
+			return;
+		}
 
-				await transaction
-					.update(canvasCachedCourse)
-					.set({ deletedAt: observedAt })
-					.where(
-						and(
-							eq(canvasCachedCourse.canvasIdentityId, batch.account.id),
-							ne(canvasCachedCourse.generationId, batch.generationId),
-							isNull(canvasCachedCourse.deletedAt),
-						),
-					);
-				await transaction
-					.insert(canvasSyncState)
-					.values({
-						canvasIdentityId: batch.account.id,
-						scope: batch.scope,
-						scopeKey: batch.scopeKey ?? "",
-						generationId: batch.generationId,
-						status: "current",
-						observedAt,
-						lastError: null,
-					})
-					.onConflictDoUpdate({
-						target: [
-							canvasSyncState.canvasIdentityId,
-							canvasSyncState.scope,
-							canvasSyncState.scopeKey,
-						],
-						set: {
-							generationId: batch.generationId,
-							status: "current",
-							observedAt,
-							lastError: null,
-						},
-					});
-			},
-			{ isolationLevel: "serializable" },
-		);
+		const upsertCourses = this.database
+			.insert(canvasCachedCourse)
+			.values(
+				batch.records.map((course) => ({
+					id: `${batch.account.id}:${course.id}`,
+					userId: this.userId,
+					canvasIdentityId: batch.account.id,
+					canvasCourseId: course.id,
+					payload: course,
+					contentHash: course.contentHash,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				})),
+			)
+			.onConflictDoUpdate({
+				target: [
+					canvasCachedCourse.canvasIdentityId,
+					canvasCachedCourse.canvasCourseId,
+				],
+				set: {
+					payload: sql`excluded.payload`,
+					contentHash: sql`excluded.content_hash`,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				},
+				setWhere: lte(canvasCachedCourse.observedAt, observedAt),
+			});
+		await this.database.batch([upsertCourses, expireMissing, updateState]);
 	}
 
 	private async applyAssignments(
@@ -211,111 +160,93 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 			);
 		}
 		const observedAt = new Date(batch.observedAt);
-		await this.database.transaction(
-			async (transaction) => {
-				const [currentState] = await transaction
-					.select({ observedAt: canvasSyncState.observedAt })
-					.from(canvasSyncState)
-					.where(
-						and(
-							eq(canvasSyncState.canvasIdentityId, batch.account.id),
-							eq(canvasSyncState.scope, batch.scope),
-							eq(canvasSyncState.scopeKey, batch.scopeKey ?? ""),
-						),
-					);
-				if (
-					currentState?.observedAt &&
-					currentState.observedAt.getTime() > observedAt.getTime()
-				) {
-					return;
-				}
-				if (batch.records.length > 0) {
-					await transaction
-						.insert(canvasCachedAssignment)
-						.values(
-							batch.records.map((assignment) => ({
-								id: `${batch.account.id}:${courseId}:${assignment.id}`,
-								userId: this.userId,
-								canvasIdentityId: batch.account.id,
-								canvasCourseId: courseId,
-								canvasAssignmentId: assignment.id,
-								payload: assignment,
-								contentHash: assignment.contentHash,
-								canvasUpdatedAt: optionalDate(assignment.updated_at),
-								generationId: batch.generationId,
-								observedAt,
-								deletedAt: null,
-							})),
-						)
-						.onConflictDoUpdate({
-							target: [
-								canvasCachedAssignment.canvasIdentityId,
-								canvasCachedAssignment.canvasCourseId,
-								canvasCachedAssignment.canvasAssignmentId,
-							],
-							set: {
-								generationId: batch.generationId,
-								observedAt,
-								deletedAt: null,
-							},
-						});
+		const expireMissing = this.database
+			.update(canvasCachedAssignment)
+			.set({ deletedAt: observedAt })
+			.where(
+				and(
+					eq(canvasCachedAssignment.canvasIdentityId, batch.account.id),
+					eq(canvasCachedAssignment.canvasCourseId, courseId),
+					ne(canvasCachedAssignment.generationId, batch.generationId),
+					lte(canvasCachedAssignment.observedAt, observedAt),
+					isNull(canvasCachedAssignment.deletedAt),
+				),
+			);
+		const updateState = this.syncStateQuery(batch, observedAt);
 
-					for (const assignment of batch.records) {
-						await transaction
-							.update(canvasCachedAssignment)
-							.set({
-								payload: assignment,
-								contentHash: assignment.contentHash,
-								canvasUpdatedAt: optionalDate(assignment.updated_at),
-							})
-							.where(
-								and(
-									eq(canvasCachedAssignment.canvasIdentityId, batch.account.id),
-									eq(canvasCachedAssignment.canvasCourseId, courseId),
-									eq(canvasCachedAssignment.canvasAssignmentId, assignment.id),
-								),
-							);
-					}
-				}
+		if (batch.records.length === 0) {
+			await this.database.batch([expireMissing, updateState]);
+			return;
+		}
 
-				await transaction
-					.update(canvasCachedAssignment)
-					.set({ deletedAt: observedAt })
-					.where(
-						and(
-							eq(canvasCachedAssignment.canvasIdentityId, batch.account.id),
-							eq(canvasCachedAssignment.canvasCourseId, courseId),
-							ne(canvasCachedAssignment.generationId, batch.generationId),
-							isNull(canvasCachedAssignment.deletedAt),
-						),
-					);
-				await transaction
-					.insert(canvasSyncState)
-					.values({
-						canvasIdentityId: batch.account.id,
-						scope: batch.scope,
-						scopeKey: batch.scopeKey ?? "",
-						generationId: batch.generationId,
-						status: "current",
-						observedAt,
-						lastError: null,
-					})
-					.onConflictDoUpdate({
-						target: [
-							canvasSyncState.canvasIdentityId,
-							canvasSyncState.scope,
-							canvasSyncState.scopeKey,
-						],
-						set: {
-							generationId: batch.generationId,
-							status: "current",
-							observedAt,
-							lastError: null,
-						},
-					});
-			},
-			{ isolationLevel: "serializable" },
-		);
+		const upsertAssignments = this.database
+			.insert(canvasCachedAssignment)
+			.values(
+				batch.records.map((assignment) => ({
+					id: `${batch.account.id}:${courseId}:${assignment.id}`,
+					userId: this.userId,
+					canvasIdentityId: batch.account.id,
+					canvasCourseId: courseId,
+					canvasAssignmentId: assignment.id,
+					payload: assignment,
+					contentHash: assignment.contentHash,
+					canvasUpdatedAt: optionalDate(assignment.updated_at),
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				})),
+			)
+			.onConflictDoUpdate({
+				target: [
+					canvasCachedAssignment.canvasIdentityId,
+					canvasCachedAssignment.canvasCourseId,
+					canvasCachedAssignment.canvasAssignmentId,
+				],
+				set: {
+					payload: sql`excluded.payload`,
+					contentHash: sql`excluded.content_hash`,
+					canvasUpdatedAt: sql`excluded.canvas_updated_at`,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				},
+				setWhere: lte(canvasCachedAssignment.observedAt, observedAt),
+			});
+		await this.database.batch([upsertAssignments, expireMissing, updateState]);
+	}
+
+	private syncStateQuery(
+		batch: CanvasSyncBatch<CanvasRecordMetadata>,
+		observedAt: Date,
+	) {
+		return this.database
+			.insert(canvasSyncState)
+			.values({
+				canvasIdentityId: batch.account.id,
+				scope: batch.scope,
+				scopeKey: batch.scopeKey ?? "",
+				generationId: batch.generationId,
+				status: "current",
+				observedAt,
+				lastError: null,
+			})
+			.onConflictDoUpdate({
+				target: [
+					canvasSyncState.canvasIdentityId,
+					canvasSyncState.scope,
+					canvasSyncState.scopeKey,
+				],
+				set: {
+					generationId: batch.generationId,
+					status: "current",
+					observedAt,
+					lastError: null,
+				},
+				setWhere: or(
+					isNull(canvasSyncState.observedAt),
+					lte(canvasSyncState.observedAt, observedAt),
+				),
+			});
 	}
 }
 

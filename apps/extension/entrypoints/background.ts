@@ -27,6 +27,10 @@ export default defineBackground(() => {
 			return appFetch(message.path, message.init);
 		}
 
+		if (message.type === "canvas-v5:sync-now") {
+			return runOpportunisticSync();
+		}
+
 		return undefined;
 	});
 
@@ -47,10 +51,13 @@ export default defineBackground(() => {
 
 const SYNC_ALARM_NAME = "canvas-v5:scheduled-sync";
 const SYNC_PERIOD_MINUTES = 120;
+const OPPORTUNISTIC_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+const LAST_OPPORTUNISTIC_SYNC_KEY = "canvas-v5-last-opportunistic-sync";
 
 type CanvasV5Message =
 	| { type: "canvas-v5:get-app-session" }
 	| { type: "canvas-v5:open-app-login" }
+	| { type: "canvas-v5:sync-now" }
 	| {
 			type: "canvas-v5:app-fetch";
 			path: string;
@@ -73,8 +80,8 @@ async function getAppSession() {
 		if (!response.ok) {
 			return { ok: false, reason: "No web app session." };
 		}
-		const session = response.body as { user?: unknown };
-		return session.user
+		const session = response.body as { user?: unknown } | null;
+		return session?.user
 			? { ok: true, user: session.user }
 			: { ok: false, reason: "No web app session." };
 	} catch (error) {
@@ -123,7 +130,7 @@ async function appFetch(
 
 async function initializeBackgroundSync() {
 	await browser.alarms.create(SYNC_ALARM_NAME, {
-		delayInMinutes: 1,
+		delayInMinutes: SYNC_PERIOD_MINUTES,
 		periodInMinutes: SYNC_PERIOD_MINUTES,
 	});
 	await registerDevice();
@@ -132,7 +139,8 @@ async function initializeBackgroundSync() {
 
 async function runScheduledSync() {
 	const response = await appFetch("/api/canvas/connections");
-	if (!response.ok || !Array.isArray(response.body)) return;
+	if (!response.ok || !Array.isArray(response.body)) return 0;
+	let synced = 0;
 	for (const connection of response.body as CanvasConnectionResponse[]) {
 		if (
 			connection.authMode !== "canvas-session" ||
@@ -146,10 +154,35 @@ async function runScheduledSync() {
 				canvasBaseUrl: connection.canvasBaseUrl,
 				canvasUserId: connection.canvasUserId ?? "unknown",
 			});
+			synced += 1;
 		} catch (error) {
 			console.warn("[canvas-v5] Scheduled Canvas sync failed", error);
 		}
 	}
+	return synced;
+}
+
+async function runOpportunisticSync() {
+	const stored = await browser.storage.local.get(LAST_OPPORTUNISTIC_SYNC_KEY);
+	const lastSync = stored[LAST_OPPORTUNISTIC_SYNC_KEY];
+	if (
+		typeof lastSync === "number" &&
+		Date.now() - lastSync < OPPORTUNISTIC_SYNC_INTERVAL_MS
+	) {
+		return { ok: true, synced: 0, skipped: "recently-synced" };
+	}
+
+	await registerDevice().catch((error) => {
+		console.warn("[canvas-v5] Device registration failed", error);
+	});
+	const synced = await runScheduledSync();
+	if (synced > 0) {
+		await browser.storage.local.set({
+			[LAST_OPPORTUNISTIC_SYNC_KEY]: Date.now(),
+		});
+	}
+	await runPendingSyncJobs();
+	return { ok: true, synced };
 }
 
 async function runPendingSyncJobs() {

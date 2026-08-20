@@ -96,6 +96,12 @@ export default defineContentScript({
 					<CanvasApp runtime={runtime} />
 				</React.StrictMode>,
 			);
+			void runtime
+				.boot()
+				.then(() => browser.runtime.sendMessage({ type: "canvas-v5:sync-now" }))
+				.catch((error) => {
+					console.warn("[canvas-v5] Initial cloud sync failed", error);
+				});
 		} catch (error) {
 			styleObserver.disconnect();
 			document.documentElement.classList.remove("canvas-v5-mounted");
@@ -181,10 +187,10 @@ function installWebAppBridge() {
 
 class ExtensionOverlayTransport implements OverlayTransport {
 	async probeAuth(): Promise<AppAuthState> {
-		const response = await this.appFetch<{ user?: AppUser }>(
+		const response = await this.appFetch<{ user?: AppUser } | null>(
 			"/api/auth/get-session",
 		);
-		if (!response.ok || !response.body.user) {
+		if (!response.ok || !response.body?.user) {
 			return { status: "unauthenticated", reason: "No app session." };
 		}
 		return { status: "authenticated", user: response.body.user };
