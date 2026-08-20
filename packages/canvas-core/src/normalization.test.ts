@@ -72,6 +72,33 @@ describe("Canvas normalization", () => {
 		expect(JSON.stringify(assignment)).not.toContain("secure_params");
 	});
 
+	test("normalizes nullable and serialized Canvas submission flags", async () => {
+		const assignment = await normalizeCanvasAssignment(
+			{
+				id: 8,
+				name: "Quiz",
+				submission: {
+					workflow_state: "graded",
+					excused: null,
+					missing: "false",
+					late: 0,
+					graded: 1,
+				},
+			},
+			account,
+			42,
+			"2026-08-19T12:00:00.000Z",
+		);
+
+		expect(assignment.submission).toMatchObject({
+			workflow_state: "graded",
+			missing: false,
+			late: false,
+			graded: true,
+		});
+		expect(assignment.submission?.excused).toBeUndefined();
+	});
+
 	test("stable hashes ignore object key order", async () => {
 		expect(await hashCanvasRecord({ a: 1, b: 2 })).toBe(
 			await hashCanvasRecord({ b: 2, a: 1 }),

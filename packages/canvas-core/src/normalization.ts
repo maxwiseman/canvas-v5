@@ -14,6 +14,17 @@ const courseDefaultViewSchema = z.enum([
 	"syllabus",
 ]);
 
+const optionalCanvasBooleanSchema = z.preprocess((value) => {
+	if (value === null || value === undefined || value === "") return undefined;
+	if (value === true || value === 1 || value === "1" || value === "true") {
+		return true;
+	}
+	if (value === false || value === 0 || value === "0" || value === "false") {
+		return false;
+	}
+	return value;
+}, z.boolean().optional());
+
 const canvasCourseSchema = z
 	.object({
 		id: z.coerce.number().int(),
@@ -70,10 +81,10 @@ const canvasAssignmentSchema = z
 			.object({
 				workflow_state: z.string().optional(),
 				submitted_at: z.string().nullable().optional(),
-				missing: z.boolean().optional(),
-				late: z.boolean().optional(),
-				excused: z.boolean().optional(),
-				graded: z.boolean().optional(),
+				missing: optionalCanvasBooleanSchema,
+				late: optionalCanvasBooleanSchema,
+				excused: optionalCanvasBooleanSchema,
+				graded: optionalCanvasBooleanSchema,
 				score: z.number().nullable().optional(),
 				grade: z.string().nullable().optional(),
 			})
