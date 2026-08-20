@@ -11,11 +11,13 @@ import type {
 describe("headless Canvas sync", () => {
 	test("uses one source and repository contract for courses and assignments", async () => {
 		const batches: CanvasSyncBatch<CanvasRecordMetadata>[] = [];
+		const requestedPaths: string[] = [];
 		const source: CanvasDataSource = {
 			async request<T>() {
 				return {} as T;
 			},
 			async paginatedRequest<T>(path: string) {
+				requestedPaths.push(path);
 				if (path.startsWith("/api/v1/courses?")) {
 					return [{ id: 12, name: "Biology" }] as T[];
 				}
@@ -54,5 +56,7 @@ describe("headless Canvas sync", () => {
 		]);
 		expect(batches[1]?.scopeKey).toBe("12");
 		expect(batches[1]?.records[0]?.canvasAccountId).toBe("account-1");
+		expect(requestedPaths[1]).toContain("include[]=submission");
+		expect(requestedPaths[1]).toContain("override_assignment_dates=true");
 	});
 });

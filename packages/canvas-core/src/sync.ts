@@ -33,7 +33,7 @@ export async function fetchNormalizedAssignments(
 	observedAt = new Date().toISOString(),
 ): Promise<NormalizedCanvasAssignment[]> {
 	const payloads = await source.paginatedRequest<unknown>(
-		`/api/v1/courses/${courseId}/assignments?per_page=100`,
+		`/api/v1/courses/${courseId}/assignments?include[]=submission&override_assignment_dates=true&per_page=100`,
 	);
 	return Promise.all(
 		payloads.map((payload) =>

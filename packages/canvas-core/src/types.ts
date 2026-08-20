@@ -62,9 +62,7 @@ export interface NormalizedCanvasCourse extends CanvasRecordMetadata {
 	enrollment_term_id?: number;
 }
 
-export interface NormalizedCanvasAssignment
-	extends CanvasRecordMetadata,
-		Record<string, unknown> {
+export interface NormalizedCanvasAssignment extends CanvasRecordMetadata {
 	id: number;
 	course_id: number;
 	name: string;
@@ -74,6 +72,41 @@ export interface NormalizedCanvasAssignment
 	due_at?: string | null;
 	lock_at?: string | null;
 	unlock_at?: string | null;
+	html_url?: string;
+	points_possible?: number | null;
+	published?: boolean;
+	workflow_state?: string;
+	omit_from_final_grade?: boolean;
+	submission_types?: string[];
+	allowed_extensions?: string[];
+	allowed_attempts?: number;
+	due_date_required?: boolean;
+	only_visible_to_overrides?: boolean;
+	locked_for_user?: boolean;
+	can_submit?: boolean;
+	has_overrides?: boolean;
+	all_dates?: Array<{
+		id?: number;
+		base?: boolean;
+		title?: string;
+		due_at?: string | null;
+		unlock_at?: string | null;
+		lock_at?: string | null;
+	}> | null;
+	rubric_settings?: Record<string, unknown>;
+	rubric?: unknown;
+	submission?: NormalizedCanvasSubmission | null;
+}
+
+export interface NormalizedCanvasSubmission {
+	workflow_state?: string;
+	submitted_at?: string | null;
+	missing?: boolean;
+	late?: boolean;
+	excused?: boolean;
+	graded?: boolean;
+	score?: number | null;
+	grade?: string | null;
 }
 
 export type CanvasSyncScope = "courses" | "assignments";

@@ -42,6 +42,36 @@ describe("Canvas normalization", () => {
 		expect(first.contentHash).not.toBe(second.contentHash);
 	});
 
+	test("keeps agent-useful details while dropping sensitive passthrough fields", async () => {
+		const assignment = await normalizeCanvasAssignment(
+			{
+				id: 7,
+				name: "Essay",
+				description: "Write it",
+				points_possible: 25,
+				rubric: [{ id: "criterion-1" }],
+				external_tool_tag_attributes: {
+					url: "https://lti.example.edu",
+					secure_params: "do-not-store",
+				},
+				submission: {
+					workflow_state: "submitted",
+					submitted_at: "2026-08-19T11:00:00.000Z",
+					late: false,
+				},
+			},
+			account,
+			42,
+			"2026-08-19T12:00:00.000Z",
+		);
+
+		expect(assignment.points_possible).toBe(25);
+		expect(assignment.rubric).toEqual([{ id: "criterion-1" }]);
+		expect(assignment.submission?.workflow_state).toBe("submitted");
+		expect(assignment).not.toHaveProperty("external_tool_tag_attributes");
+		expect(JSON.stringify(assignment)).not.toContain("secure_params");
+	});
+
 	test("stable hashes ignore object key order", async () => {
 		expect(await hashCanvasRecord({ a: 1, b: 2 })).toBe(
 			await hashCanvasRecord({ b: 2, a: 1 }),

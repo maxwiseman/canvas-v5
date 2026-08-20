@@ -133,6 +133,70 @@ export async function listOwnedCanvasIdentities(userId: string) {
 		.where(eq(canvasIdentity.userId, userId));
 }
 
+export async function listCanvasAccountHealth(userId: string) {
+	const identities = await listOwnedCanvasIdentities(userId);
+	return Promise.all(
+		identities.map(async (identity) => {
+			const freshness = await getCanvasFreshness(userId, identity.id);
+			const [latestRequest] = await db
+				.select()
+				.from(canvasSyncRequest)
+				.where(
+					and(
+						eq(canvasSyncRequest.userId, userId),
+						eq(canvasSyncRequest.canvasIdentityId, identity.id),
+					),
+				)
+				.orderBy(desc(canvasSyncRequest.requestedAt));
+			const credentials = await db
+				.select({
+					status: canvasCredential.status,
+					lastError: canvasCredential.lastError,
+				})
+				.from(canvasCredential)
+				.where(
+					and(
+						eq(canvasCredential.userId, userId),
+						eq(canvasCredential.canvasIdentityId, identity.id),
+					),
+				);
+			const observedAt = freshness?.observedAt?.toISOString() ?? null;
+			const requestIsNewer =
+				latestRequest?.requestedAt &&
+				(!freshness?.observedAt ||
+					latestRequest.requestedAt > freshness.observedAt);
+			const requestError =
+				latestRequest?.status === "error" && requestIsNewer
+					? latestRequest.lastError
+					: null;
+			const hasActiveCredential = credentials.some(
+				(credential) => credential.status === "active",
+			);
+			const credentialError = hasActiveCredential
+				? null
+				: credentials.find((credential) => credential.lastError)?.lastError;
+			const error = requestError ?? credentialError ?? null;
+			const status = accountHealthStatus({
+				fresh: Boolean(observedAt),
+				requestStatus: latestRequest?.status,
+				error,
+			});
+
+			return {
+				account: {
+					id: identity.id,
+					label: identity.label,
+					canvasBaseUrl: identity.canvasBaseUrl,
+				},
+				status,
+				lastSuccessfulSyncAt: observedAt,
+				dataObservedAt: observedAt,
+				message: accountHealthMessage(status, error, Boolean(observedAt)),
+			};
+		}),
+	);
+}
+
 export async function getCanvasFreshness(
 	userId: string,
 	canvasIdentityId: string,
@@ -258,4 +322,44 @@ export class CanvasSessionRequiredError extends Error {
 	constructor(readonly canvasIdentityId: string) {
 		super("This Canvas account requires an authenticated extension session.");
 	}
+}
+
+function accountHealthStatus(options: {
+	fresh: boolean;
+	requestStatus?: string;
+	error: string | null;
+}): "ready" | "refreshing" | "reauth_required" | "unavailable" {
+	if (
+		options.requestStatus === "pending" ||
+		options.requestStatus === "claimed"
+	) {
+		return "refreshing";
+	}
+	if (options.error) {
+		return /401|403|authenticat|unauthori|session|token|credential/i.test(
+			options.error,
+		)
+			? "reauth_required"
+			: "unavailable";
+	}
+	return options.fresh ? "ready" : "unavailable";
+}
+
+function accountHealthMessage(
+	status: "ready" | "refreshing" | "reauth_required" | "unavailable",
+	error: string | null,
+	hasCachedData: boolean,
+) {
+	if (status === "ready") return "Cached Canvas data is available.";
+	if (status === "refreshing") {
+		return hasCachedData
+			? "A refresh is in progress; cached data remains available."
+			: "A refresh is in progress; no cached data is available yet.";
+	}
+	if (status === "reauth_required") {
+		return error
+			? `Canvas access needs to be reauthenticated: ${error}`
+			: "Canvas access needs to be reauthenticated.";
+	}
+	return error ?? "No synced Canvas data is currently available.";
 }
