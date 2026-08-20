@@ -1,5 +1,6 @@
 import type {
 	AppAuthState,
+	AssignmentComment,
 	CanvasAccount,
 	CanvasAuthState,
 	CanvasConnectionInput,
@@ -477,11 +478,54 @@ export class HttpOverlayTransport implements OverlayTransport {
 		}
 		return (await response.json()) as CourseOverlay;
 	}
+
+	async listAssignmentComments(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+	}): Promise<AssignmentComment[]> {
+		const url = new URL("/api/canvas/assignment-comments", this.baseUrl);
+		url.searchParams.set("canvasDomain", input.canvasDomain);
+		url.searchParams.set("canvasCourseId", String(input.canvasCourseId));
+		url.searchParams.set(
+			"canvasAssignmentId",
+			String(input.canvasAssignmentId),
+		);
+		const response = await fetch(url, { credentials: "include" });
+		if (!response.ok) {
+			throw new Error(
+				`Assignment comments request failed (${response.status})`,
+			);
+		}
+		return (await response.json()) as AssignmentComment[];
+	}
+
+	async createAssignmentComment(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+		content: string;
+	}): Promise<AssignmentComment> {
+		const response = await fetch(
+			new URL("/api/canvas/assignment-comments", this.baseUrl),
+			{
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(input),
+			},
+		);
+		if (!response.ok) {
+			throw new Error(`Assignment comment create failed (${response.status})`);
+		}
+		return (await response.json()) as AssignmentComment;
+	}
 }
 
 export class LocalOverlayTransport implements OverlayTransport {
 	private overlays: CourseOverlay[] = [];
 	private connections: CanvasAccount[] = [];
+	private assignmentComments: AssignmentComment[] = [];
 
 	async probeAuth(): Promise<AppAuthState> {
 		return {
@@ -549,6 +593,36 @@ export class LocalOverlayTransport implements OverlayTransport {
 			overlay,
 		];
 		return overlay;
+	}
+
+	async listAssignmentComments(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+	}): Promise<AssignmentComment[]> {
+		return this.assignmentComments.filter(
+			(comment) =>
+				comment.canvasDomain === input.canvasDomain &&
+				comment.canvasCourseId === input.canvasCourseId &&
+				comment.canvasAssignmentId === input.canvasAssignmentId,
+		);
+	}
+
+	async createAssignmentComment(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+		content: string;
+	}): Promise<AssignmentComment> {
+		const now = new Date().toISOString();
+		const comment: AssignmentComment = {
+			id: crypto.randomUUID(),
+			...input,
+			createdAt: now,
+			updatedAt: now,
+		};
+		this.assignmentComments.push(comment);
+		return comment;
 	}
 }
 

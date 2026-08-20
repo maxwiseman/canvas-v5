@@ -378,7 +378,6 @@ export interface CanvasSubmissionInput {
 	type: "online_text_entry" | "online_url";
 	text?: string;
 	url?: string;
-	comment?: string;
 }
 
 export interface CanvasQuiz extends Record<string, unknown> {
@@ -540,6 +539,16 @@ export interface CourseOverlay {
 	updatedAt: string;
 }
 
+export interface AssignmentComment {
+	id: string;
+	canvasDomain: string;
+	canvasCourseId: number;
+	canvasAssignmentId: number;
+	content: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export type SyncScope =
 	| "accounts"
 	| "courses"
@@ -644,4 +653,15 @@ export interface OverlayTransport {
 		icon?: string | null;
 		hiddenTabIds?: string[];
 	}): Promise<CourseOverlay>;
+	listAssignmentComments(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+	}): Promise<AssignmentComment[]>;
+	createAssignmentComment(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+		content: string;
+	}): Promise<AssignmentComment>;
 }

@@ -26,6 +26,8 @@ export function CommentField({
 		try {
 			await onSubmit(commentContent.trim());
 			setCommentContent("");
+		} catch {
+			// The caller owns error presentation; keep the draft available to retry.
 		} finally {
 			setSubmitting(false);
 		}

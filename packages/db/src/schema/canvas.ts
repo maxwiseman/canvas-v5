@@ -323,6 +323,34 @@ export const canvasCourseOverlay = pgTable(
 	],
 );
 
+export const canvasAssignmentComment = pgTable(
+	"canvas_assignment_comment",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		canvasDomain: text("canvas_domain").notNull(),
+		canvasCourseId: integer("canvas_course_id").notNull(),
+		canvasAssignmentId: integer("canvas_assignment_id").notNull(),
+		content: text("content").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("canvas_assignment_comment_target_idx").on(
+			table.userId,
+			table.canvasDomain,
+			table.canvasCourseId,
+			table.canvasAssignmentId,
+			table.createdAt,
+		),
+	],
+);
+
 export const canvasConnectionRelations = relations(
 	canvasConnection,
 	({ one }) => ({
@@ -343,6 +371,16 @@ export const canvasCourseOverlayRelations = relations(
 		connection: one(canvasConnection, {
 			fields: [canvasCourseOverlay.canvasConnectionId],
 			references: [canvasConnection.id],
+		}),
+	}),
+);
+
+export const canvasAssignmentCommentRelations = relations(
+	canvasAssignmentComment,
+	({ one }) => ({
+		user: one(user, {
+			fields: [canvasAssignmentComment.userId],
+			references: [user.id],
 		}),
 	}),
 );

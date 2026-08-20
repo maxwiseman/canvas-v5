@@ -1,7 +1,9 @@
 import {
+	type AssignmentComment,
 	type CanvasSubmissionInput,
 	useAssignment,
 	useCanvasRuntime,
+	useCanvasSnapshot,
 	useSubmission,
 	useSyncStatus,
 } from "@canvas-v5/canvas-sdk";
@@ -34,7 +36,7 @@ import {
 	RotateCw,
 	Send,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CanvasHTML } from "../../../components/canvas-html";
 import { CommentField } from "../../../components/comment-field";
 import {
@@ -57,8 +59,63 @@ function AssignmentRoute() {
 	const assignment = useAssignment(courseId, assignmentId);
 	const submission = useSubmission(courseId, assignmentId);
 	const runtime = useCanvasRuntime();
+	const snapshot = useCanvasSnapshot();
 	const sync = useSyncStatus().find((state) => state.scope === "assignments");
 	const [actionError, setActionError] = useState<string>();
+	const [commentError, setCommentError] = useState<string>();
+	const [commentsLoading, setCommentsLoading] = useState(false);
+	const [assignmentComments, setAssignmentComments] = useState<
+		AssignmentComment[]
+	>([]);
+	const numericCourseId = Number(courseId);
+	const numericAssignmentId = Number(assignmentId);
+	const commentTargetKey =
+		snapshot.activeAccount?.canvasBaseUrl ??
+		(snapshot.canvasAuth.status === "authenticated"
+			? snapshot.canvasAuth.baseUrl
+			: undefined);
+
+	useEffect(() => {
+		if (
+			snapshot.appAuth.status !== "authenticated" ||
+			!commentTargetKey ||
+			!Number.isFinite(numericCourseId) ||
+			!Number.isFinite(numericAssignmentId)
+		) {
+			setAssignmentComments([]);
+			setCommentsLoading(false);
+			return;
+		}
+
+		let cancelled = false;
+		setCommentsLoading(true);
+		setCommentError(undefined);
+		void runtime
+			.listAssignmentComments(numericCourseId, numericAssignmentId)
+			.then((comments) => {
+				if (!cancelled) setAssignmentComments(comments);
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					setCommentError(
+						error instanceof Error ? error.message : "Unable to load comments.",
+					);
+				}
+			})
+			.finally(() => {
+				if (!cancelled) setCommentsLoading(false);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		commentTargetKey,
+		numericAssignmentId,
+		numericCourseId,
+		runtime,
+		snapshot.appAuth.status,
+	]);
 
 	if (!assignment) {
 		return (
@@ -116,7 +173,9 @@ function AssignmentRoute() {
 
 					{submission?.submission_comments?.length ? (
 						<div className="mt-8 flex flex-col gap-3">
-							<h2 className="font-medium text-sm">Submission comments</h2>
+							<h2 className="font-medium text-sm">
+								Canvas submission comments
+							</h2>
 							{submission.submission_comments.map((comment) => (
 								<Card key={comment.id} size="sm">
 									<CardHeader>
@@ -135,25 +194,50 @@ function AssignmentRoute() {
 						</div>
 					) : null}
 
-					<CommentField
-						disabled={!submission}
-						onSubmit={async (comment) => {
-							setActionError(undefined);
-							try {
-								await runtime.addSubmissionComment(
-									Number(courseId),
-									Number(assignmentId),
-									comment,
-								);
-							} catch (error) {
-								setActionError(
-									error instanceof Error
-										? error.message
-										: "Unable to send comment.",
-								);
+					<div className="mt-8 flex flex-col gap-3">
+						<h2 className="font-medium text-sm">Comments</h2>
+						{assignmentComments.map((comment) => (
+							<Card key={comment.id} size="sm">
+								<CardHeader>
+									<CardTitle>You</CardTitle>
+									<CardDescription>
+										{formatDateTime(comment.createdAt)}
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="whitespace-pre-wrap">
+									{comment.content}
+								</CardContent>
+							</Card>
+						))}
+						<CommentField
+							disabled={
+								commentsLoading ||
+								snapshot.appAuth.status !== "authenticated" ||
+								!commentTargetKey
 							}
-						}}
-					/>
+							onSubmit={async (content) => {
+								setCommentError(undefined);
+								try {
+									const saved = await runtime.createAssignmentComment(
+										numericCourseId,
+										numericAssignmentId,
+										content,
+									);
+									setAssignmentComments((comments) => [...comments, saved]);
+								} catch (error) {
+									setCommentError(
+										error instanceof Error
+											? error.message
+											: "Unable to save comment.",
+									);
+									throw error;
+								}
+							}}
+						/>
+						{commentError ? (
+							<p className="text-destructive text-sm">{commentError}</p>
+						) : null}
+					</div>
 					{actionError ? (
 						<p className="mt-2 text-destructive text-sm">{actionError}</p>
 					) : null}
@@ -161,9 +245,9 @@ function AssignmentRoute() {
 
 				<div className="flex flex-col gap-4">
 					<Card size="sm">
-						<CardHeader>
+						<CardHeader className="gap-0">
 							<CardTitle>Assignment details</CardTitle>
-							<CardDescription>Requirements and availability</CardDescription>
+							{/*<CardDescription>Requirements and availability</CardDescription>*/}
 						</CardHeader>
 						<CardContent className="flex flex-col gap-3">
 							<Detail
@@ -384,7 +468,7 @@ function SubmissionStatus({
 
 function Detail({ icon, label }: { icon: React.ReactNode; label: string }) {
 	return (
-		<div className="flex items-start gap-2 text-muted-foreground text-sm">
+		<div className="flex items-center gap-2 text-muted-foreground text-sm [&>svg]:size-4">
 			{icon}
 			<span>{label}</span>
 		</div>

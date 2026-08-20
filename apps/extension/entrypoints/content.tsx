@@ -3,6 +3,7 @@ import appStyles from "@canvas-v5/app/styles.css?inline";
 import type {
 	AppAuthState,
 	AppUser,
+	AssignmentComment,
 	CanvasAccount,
 	CanvasConnectionInput,
 	CourseOverlay,
@@ -240,6 +241,43 @@ class ExtensionOverlayTransport implements OverlayTransport {
 		);
 		if (!response.ok) {
 			throw new Error(`Overlay update failed (${response.status})`);
+		}
+		return response.body;
+	}
+
+	async listAssignmentComments(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+	}): Promise<AssignmentComment[]> {
+		const query = new URLSearchParams({
+			canvasDomain: input.canvasDomain,
+			canvasCourseId: String(input.canvasCourseId),
+			canvasAssignmentId: String(input.canvasAssignmentId),
+		});
+		const response = await this.appFetch<AssignmentComment[]>(
+			`/api/canvas/assignment-comments?${query}`,
+		);
+		if (!response.ok) {
+			throw new Error(
+				`Assignment comments request failed (${response.status})`,
+			);
+		}
+		return response.body;
+	}
+
+	async createAssignmentComment(input: {
+		canvasDomain: string;
+		canvasCourseId: number;
+		canvasAssignmentId: number;
+		content: string;
+	}): Promise<AssignmentComment> {
+		const response = await this.appFetch<AssignmentComment>(
+			"/api/canvas/assignment-comments",
+			{ method: "POST", body: input },
+		);
+		if (!response.ok) {
+			throw new Error(`Assignment comment create failed (${response.status})`);
 		}
 		return response.body;
 	}

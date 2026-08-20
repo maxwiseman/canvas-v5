@@ -15,6 +15,7 @@ import {
 
 import { CanvasIndexedDbStore, emptySnapshot } from "./store";
 import type {
+	AssignmentComment,
 	CanvasActivityItem,
 	CanvasAnnouncement,
 	CanvasAssignment,
@@ -1128,9 +1129,6 @@ export class CanvasRuntime {
 								? { body: input.text ?? "" }
 								: { url: input.url ?? "" }),
 						},
-						...(input.comment
-							? { comment: { text_comment: input.comment } }
-							: {}),
 					},
 				},
 			);
@@ -1141,25 +1139,43 @@ export class CanvasRuntime {
 		}
 	}
 
-	async addSubmissionComment(
+	async listAssignmentComments(
 		courseId: number,
 		assignmentId: number,
-		comment: string,
-	) {
-		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
-		try {
-			await this.options.canvasTransport.request<CanvasSubmission>(
-				`/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/self`,
-				{
-					method: "PUT",
-					body: { comment: { text_comment: comment } },
-				},
-			);
-			return await this.syncSubmission(courseId, assignmentId);
-		} catch (error) {
-			this.failScope("submissions", error, "Unable to add your comment.");
-			throw error;
+	): Promise<AssignmentComment[]> {
+		return this.options.overlayTransport.listAssignmentComments(
+			this.assignmentCommentTarget(courseId, assignmentId),
+		);
+	}
+
+	async createAssignmentComment(
+		courseId: number,
+		assignmentId: number,
+		content: string,
+	): Promise<AssignmentComment> {
+		return this.options.overlayTransport.createAssignmentComment({
+			...this.assignmentCommentTarget(courseId, assignmentId),
+			content,
+		});
+	}
+
+	private assignmentCommentTarget(courseId: number, assignmentId: number) {
+		if (this.snapshot.appAuth.status !== "authenticated") {
+			throw new Error("Sign in to Canvas V5 to use assignment comments.");
 		}
+		const canvasBaseUrl =
+			this.snapshot.activeAccount?.canvasBaseUrl ??
+			(this.snapshot.canvasAuth.status === "authenticated"
+				? this.snapshot.canvasAuth.baseUrl
+				: undefined);
+		if (!canvasBaseUrl) {
+			throw new Error("No active Canvas account is available.");
+		}
+		return {
+			canvasDomain: new URL(canvasBaseUrl).hostname.toLowerCase(),
+			canvasCourseId: courseId,
+			canvasAssignmentId: assignmentId,
+		};
 	}
 
 	async syncCourseOverlays() {
