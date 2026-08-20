@@ -17,8 +17,11 @@ export function PageHeaderSubtitle({ children }: { children?: ReactNode }) {
 	return <h3 className="text-lg text-muted-foreground">{children}</h3>;
 }
 
-export function PageHeaderActions({ children }: { children?: ReactNode }) {
-	return <div className="flex gap-2">{children}</div>;
+export function PageHeaderActions({
+	className,
+	...props
+}: HTMLProps<HTMLDivElement>) {
+	return <div className={cn("flex gap-2", className)} {...props} />;
 }
 
 export function PageWrapper({

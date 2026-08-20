@@ -60,7 +60,7 @@ function CourseRoute() {
 	return <ActivityStream items={activity} />;
 }
 
-function HomeDocument({  children  }: {  children: React.ReactNode  }) {
+function HomeDocument({ children }: { children: React.ReactNode }) {
 	return <section className="mx-auto w-full max-w-3xl">{children}</section>;
 }
 

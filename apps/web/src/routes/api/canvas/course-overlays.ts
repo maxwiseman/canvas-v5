@@ -1,4 +1,5 @@
 import { auth } from "@canvas-v5/auth";
+import type { IconId } from "@canvas-v5/canvas-core";
 import { db } from "@canvas-v5/db";
 import {
 	canvasConnection,
@@ -94,10 +95,35 @@ export const Route = createFileRoute("/api/canvas/course-overlays")({
 	},
 });
 
+const iconIds = [
+	"atom",
+	"flask",
+	"microscope",
+	"book",
+	"bookmark",
+	"notebook",
+	"star",
+	"paintbrush",
+	"palette",
+	"brain",
+	"brain-circuit",
+	"calculator",
+	"diff",
+	"divide",
+	"pi",
+	"radical",
+	"cone",
+	"code",
+	"binary",
+	"government",
+	"gavel",
+	"earth",
+] as const satisfies readonly IconId[];
+
 const courseOverlayInput = z.object({
 	canvasConnectionId: z.string().min(1),
 	canvasCourseId: z.number().int(),
-	icon: z.string().nullable().optional(),
+	icon: z.enum(iconIds).nullable().optional(),
 });
 
 async function findConnectionForUser(userId: string, connectionId: string) {

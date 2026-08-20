@@ -196,6 +196,16 @@ class ExtensionOverlayTransport implements OverlayTransport {
 		return { status: "authenticated", user: response.body.user };
 	}
 
+	async signOutApp() {
+		const response = await this.appFetch<unknown>("/api/auth/sign-out", {
+			method: "POST",
+			body: {},
+		});
+		if (!response.ok) {
+			throw new Error(`App sign out failed (${response.status})`);
+		}
+	}
+
 	async listConnections(): Promise<CanvasAccount[]> {
 		const response = await this.appFetch<CanvasAccount[]>(
 			"/api/canvas/connections",

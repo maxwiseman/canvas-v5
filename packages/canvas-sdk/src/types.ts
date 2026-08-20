@@ -73,6 +73,8 @@ export type CanvasCourseDefaultView =
 	| "syllabus";
 
 export interface CanvasPage extends Record<string, unknown> {
+	id?: string;
+	course_id?: number;
 	page_id: number;
 	url: string;
 	title: string;
@@ -252,7 +254,7 @@ export interface CanvasAssignment extends Record<string, unknown> {
 	freeze_on_copy?: boolean;
 	frozen?: boolean;
 	frozen_attributes?: string[];
-	submission?: unknown;
+	submission?: Partial<CanvasSubmission> | null;
 	use_rubric_for_grading?: boolean;
 	rubric_settings?: Record<string, unknown>;
 	rubric?: unknown;
@@ -312,6 +314,7 @@ export interface CanvasModuleItem extends Record<string, unknown> {
 	indent?: number;
 	type: string;
 	content_id?: number;
+	page_url?: string;
 	html_url?: string;
 	external_url?: string;
 	new_tab?: boolean;
@@ -324,11 +327,15 @@ export interface CanvasAnnouncement {
 	title: string;
 	message?: string;
 	posted_at?: string;
+	delayed_post_at?: string | null;
+	read_state?: "read" | "unread";
+	unread_count?: number;
+	author?: CanvasBasicUser;
 	html_url?: string;
 }
 
 export interface CanvasSubmission {
-	id?: number;
+	id: string | number;
 	assignment_id: number;
 	course_id: number;
 	user_id?: number;
@@ -336,6 +343,17 @@ export interface CanvasSubmission {
 	submitted_at?: string | null;
 	score?: number | null;
 	grade?: string | null;
+	attempt?: number | null;
+	body?: string | null;
+	url?: string | null;
+	submission_type?: string | null;
+	late?: boolean;
+	missing?: boolean;
+	excused?: boolean;
+	attachments?: CanvasFile[];
+	submission_comments?: CanvasSubmissionComment[];
+	submission_history?: CanvasSubmission[];
+	rubric_assessment?: Record<string, unknown>;
 }
 
 export interface CanvasCalendarItem {
@@ -345,6 +363,172 @@ export interface CanvasCalendarItem {
 	end_at?: string | null;
 	context_code?: string;
 	html_url?: string;
+}
+
+export interface CanvasSubmissionComment {
+	id: number;
+	author_id?: number;
+	author_name?: string;
+	comment?: string;
+	created_at?: string;
+	attachments?: CanvasFile[];
+}
+
+export interface CanvasSubmissionInput {
+	type: "online_text_entry" | "online_url";
+	text?: string;
+	url?: string;
+	comment?: string;
+}
+
+export interface CanvasQuiz extends Record<string, unknown> {
+	id: number;
+	course_id: number;
+	title: string;
+	description?: string | null;
+	quiz_type?: string;
+	due_at?: string | null;
+	lock_at?: string | null;
+	unlock_at?: string | null;
+	points_possible?: number | null;
+	question_count?: number;
+	time_limit?: number | null;
+	allowed_attempts?: number;
+	workflow_state?: string;
+	locked_for_user?: boolean;
+	lock_explanation?: string;
+	html_url?: string;
+}
+
+export interface CanvasDiscussionTopic extends Record<string, unknown> {
+	id: number;
+	course_id: number;
+	title: string;
+	message?: string | null;
+	posted_at?: string | null;
+	last_reply_at?: string | null;
+	discussion_type?: string;
+	unread_count?: number;
+	read_state?: "read" | "unread";
+	subscribed?: boolean;
+	locked_for_user?: boolean;
+	author?: CanvasBasicUser & { avatar_image_url?: string };
+	html_url?: string;
+}
+
+export interface CanvasDiscussionEntry extends Record<string, unknown> {
+	id: number;
+	topic_id: number;
+	course_id: number;
+	user_id?: number;
+	user_name?: string;
+	message?: string;
+	created_at?: string;
+	updated_at?: string;
+	read_state?: "read" | "unread";
+	rating_count?: number;
+	rating_sum?: number;
+	replies?: CanvasDiscussionEntry[];
+}
+
+export interface CanvasFile extends Record<string, unknown> {
+	id: number;
+	course_id: number;
+	display_name: string;
+	filename?: string;
+	content_type?: string;
+	size?: number;
+	url?: string;
+	thumbnail_url?: string;
+	created_at?: string;
+	updated_at?: string;
+	locked_for_user?: boolean;
+	lock_explanation?: string;
+}
+
+export interface CanvasCourseTab extends Record<string, unknown> {
+	id: string;
+	canvas_tab_id?: string;
+	course_id: number;
+	label: string;
+	position?: number;
+	hidden?: boolean;
+	visibility?: string;
+	type?: string;
+	html_url?: string;
+}
+
+export interface CanvasPlannerItem extends Record<string, unknown> {
+	id: string;
+	course_id?: number;
+	context_type?: string;
+	context_name?: string;
+	plannable_id: string | number;
+	plannable_type: string;
+	plannable_date?: string;
+	plannable?: Record<string, unknown> & {
+		title?: string;
+		name?: string;
+		due_at?: string | null;
+		todo_date?: string | null;
+		details?: string | null;
+	};
+	planner_override?: {
+		id?: number;
+		marked_complete?: boolean;
+		dismissed?: boolean;
+	} | null;
+	submissions?:
+		| false
+		| {
+				excused?: boolean;
+				graded?: boolean;
+				late?: boolean;
+				missing?: boolean;
+				needs_grading?: boolean;
+				with_feedback?: boolean;
+		  };
+	html_url?: string;
+}
+
+export interface CanvasConversation extends Record<string, unknown> {
+	id: string;
+	subject?: string;
+	workflow_state?: "read" | "unread" | "archived";
+	last_message?: string;
+	last_message_at?: string;
+	message_count?: number;
+	starred?: boolean;
+	avatar_url?: string;
+	context_name?: string;
+	participants?: Array<CanvasBasicUser & { full_name?: string }>;
+	messages?: CanvasConversationMessage[];
+}
+
+export interface CanvasConversationMessage extends Record<string, unknown> {
+	id: string | number;
+	author_id?: number | string;
+	created_at?: string;
+	body?: string;
+	generated?: boolean;
+	attachments?: CanvasFile[];
+}
+
+export interface CanvasCommunicationChannel extends Record<string, unknown> {
+	id: number;
+	address: string;
+	type: string;
+	position?: number;
+	workflow_state?: string;
+}
+
+export interface CanvasNotificationPreference extends Record<string, unknown> {
+	id: string;
+	channel_id: number;
+	href?: string;
+	notification: string;
+	category: string;
+	frequency: "immediately" | "daily" | "weekly" | "never";
 }
 
 export interface CourseOverlay {
@@ -364,8 +548,17 @@ export type SyncScope =
 	| "modules"
 	| "course-home"
 	| "announcements"
+	| "pages"
+	| "quizzes"
+	| "discussions"
+	| "discussion-entries"
+	| "files"
+	| "course-tabs"
 	| "submissions"
 	| "calendar"
+	| "planner"
+	| "conversations"
+	| "notifications"
 	| "course-overlays";
 
 export interface SyncScopeState {
@@ -403,8 +596,18 @@ export interface CanvasRuntimeSnapshot {
 	modules: CanvasModule[];
 	courseHomes: CanvasCourseHome[];
 	announcements: CanvasAnnouncement[];
+	pages: CanvasPage[];
+	quizzes: CanvasQuiz[];
+	discussions: CanvasDiscussionTopic[];
+	discussionEntries: CanvasDiscussionEntry[];
+	files: CanvasFile[];
+	courseTabs: CanvasCourseTab[];
 	submissions: CanvasSubmission[];
 	calendarItems: CanvasCalendarItem[];
+	plannerItems: CanvasPlannerItem[];
+	conversations: CanvasConversation[];
+	communicationChannels: CanvasCommunicationChannel[];
+	notificationPreferences: CanvasNotificationPreference[];
 	courseOverlays: CourseOverlay[];
 	syncScopes: SyncScopeState[];
 	mutationQueue: QueuedMutation[];
@@ -429,6 +632,7 @@ export interface CanvasTransport {
 
 export interface OverlayTransport {
 	probeAuth(): Promise<AppAuthState>;
+	signOutApp(): Promise<void>;
 	listConnections(): Promise<CanvasAccount[]>;
 	ensureConnection(connection: CanvasAccount): Promise<CanvasAccount>;
 	createConnection(input: CanvasConnectionInput): Promise<CanvasAccount>;

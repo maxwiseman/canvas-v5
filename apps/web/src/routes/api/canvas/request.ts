@@ -111,6 +111,9 @@ function createCanvasHeaders(accessToken: string, hasBody: boolean) {
 }
 
 async function createCanvasJsonResponse(canvasResponse: Response) {
+	if (canvasResponse.status === 204) {
+		return new Response(null, { status: canvasResponse.status });
+	}
 	const contentType = canvasResponse.headers.get("Content-Type") ?? "";
 	if (!contentType.includes("application/json")) {
 		return new Response(await canvasResponse.text(), {

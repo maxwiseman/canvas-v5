@@ -181,6 +181,12 @@ function internalModuleItemHref(courseId: string, item: CanvasModuleItem) {
 	if (item.type === "Assignment" && item.content_id !== undefined) {
 		return `/courses/${encodeURIComponent(courseId)}/assignments/${item.content_id}`;
 	}
+	if (item.type === "Quiz" && item.content_id !== undefined) {
+		return `/courses/${encodeURIComponent(courseId)}/quizzes/${item.content_id}`;
+	}
+	if (item.type === "Page" && item.page_url) {
+		return `/courses/${encodeURIComponent(courseId)}/pages/${encodeURIComponent(item.page_url)}`;
+	}
 
 	return undefined;
 }

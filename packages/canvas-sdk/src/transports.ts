@@ -84,7 +84,11 @@ export class CanvasRestTransport implements CanvasTransport {
 			throw new Error(`Canvas request failed (${response.status}) for ${path}`);
 		}
 
-		return (await response.json()) as T;
+		if (response.status === 204) {
+			return undefined as T;
+		}
+		const responseText = await response.text();
+		return (responseText ? JSON.parse(responseText) : undefined) as T;
 	}
 
 	async paginatedRequest<T>(
@@ -383,6 +387,18 @@ export class HttpOverlayTransport implements OverlayTransport {
 		}
 	}
 
+	async signOutApp() {
+		const response = await fetch(new URL("/api/auth/sign-out", this.baseUrl), {
+			method: "POST",
+			credentials: "include",
+			headers: { "Content-Type": "application/json" },
+			body: "{}",
+		});
+		if (!response.ok) {
+			throw new Error(`App sign out failed (${response.status})`);
+		}
+	}
+
 	async listConnections(): Promise<CanvasAccount[]> {
 		const response = await fetch(
 			new URL("/api/canvas/connections", this.baseUrl),
@@ -472,6 +488,8 @@ export class LocalOverlayTransport implements OverlayTransport {
 			user: { id: "local-dev", name: "Local Dev" },
 		};
 	}
+
+	async signOutApp() {}
 
 	async listConnections(): Promise<CanvasAccount[]> {
 		return this.connections;

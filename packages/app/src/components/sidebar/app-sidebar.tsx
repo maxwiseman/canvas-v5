@@ -11,7 +11,7 @@ import {
 	SidebarMenuItem,
 } from "@canvas-v5/ui/components/sidebar";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { GraduationCap, Home, MessageCircle } from "lucide-react";
+import { CalendarDays, GraduationCap, Home, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type ComponentType, useState } from "react";
 import { IconPicker, isIconId } from "../icon-picker";
@@ -63,6 +63,15 @@ export function AppSidebar() {
 									Home
 								</SidebarMenuButton>
 							</SidebarMenuItem>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									onClick={() => setHasGoneBack(false)}
+									render={<Link to={"/calendar" as never} />}
+								>
+									<CalendarDays />
+									Calendar
+								</SidebarMenuButton>
+							</SidebarMenuItem>
 							{/*<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => setHasGoneBack(false)}
@@ -73,15 +82,21 @@ export function AppSidebar() {
 								</SidebarMenuButton>
 							</SidebarMenuItem>*/}
 							<SidebarMenuItem>
-								<SidebarMenuButton onClick={() => setHasGoneBack(false)}>
+								<SidebarMenuButton
+									onClick={() => setHasGoneBack(false)}
+									render={<Link to={"/inbox" as never} />}
+								>
 									<MessageCircle />
-									Chat
+									Inbox
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
-								<SidebarMenuButton onClick={() => setHasGoneBack(false)}>
+								<SidebarMenuButton
+									onClick={() => setHasGoneBack(false)}
+									render={<Link to={"/planner" as never} />}
+								>
 									<GraduationCap />
-									Study
+									Planner
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarGroup>
@@ -96,8 +111,8 @@ export function AppSidebar() {
 												}}
 												render={
 													<Link
-														to="/courses/$classId"
-														params={{ classId: course.id.toString() }}
+														to={"/courses/$classId" as never}
+														params={{ classId: course.id.toString() } as never}
 													/>
 												}
 											>

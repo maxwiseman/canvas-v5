@@ -9,25 +9,70 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root";
+import { Route as PlannerRouteImport } from "./routes/planner";
+import { Route as InboxRouteImport } from "./routes/inbox";
 import { Route as DevRouteImport } from "./routes/dev";
+import { Route as CalendarRouteImport } from "./routes/calendar";
+import { Route as AccountRouteImport } from "./routes/account";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as InboxNewRouteImport } from "./routes/inbox/new";
+import { Route as InboxConversationIdRouteImport } from "./routes/inbox/$conversationId";
 import { Route as DevSyncRouteImport } from "./routes/dev.sync";
 import { Route as DevMutationsRouteImport } from "./routes/dev.mutations";
 import { Route as CoursesCourseIdIndexRouteImport } from "./routes/courses.$courseId/index";
 import { Route as CoursesCourseIdPeopleRouteImport } from "./routes/courses.$courseId/people";
 import { Route as CoursesCourseIdModulesRouteImport } from "./routes/courses.$courseId/modules";
+import { Route as CoursesCourseIdGradesRouteImport } from "./routes/courses.$courseId/grades";
+import { Route as CoursesCourseIdFilesRouteImport } from "./routes/courses.$courseId/files";
+import { Route as CoursesCourseIdDiscussionsRouteImport } from "./routes/courses.$courseId/discussions";
+import { Route as CoursesCourseIdAnnouncementsRouteImport } from "./routes/courses.$courseId/announcements";
+import { Route as CoursesCourseIdQuizzesIndexRouteImport } from "./routes/courses.$courseId/quizzes/index";
+import { Route as CoursesCourseIdPagesIndexRouteImport } from "./routes/courses.$courseId/pages/index";
 import { Route as CoursesCourseIdAssignmentsIndexRouteImport } from "./routes/courses.$courseId/assignments/index";
+import { Route as CoursesCourseIdQuizzesQuizIdRouteImport } from "./routes/courses.$courseId/quizzes/$quizId";
+import { Route as CoursesCourseIdPagesPageUrlRouteImport } from "./routes/courses.$courseId/pages/$pageUrl";
+import { Route as CoursesCourseIdDiscussionsTopicIdRouteImport } from "./routes/courses.$courseId/discussions/$topicId";
 import { Route as CoursesCourseIdAssignmentsAssignmentIdRouteImport } from "./routes/courses.$courseId/assignments/$assignmentId";
 
+const PlannerRoute = PlannerRouteImport.update({
+  id: "/planner",
+  path: "/planner",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const InboxRoute = InboxRouteImport.update({
+  id: "/inbox",
+  path: "/inbox",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DevRoute = DevRouteImport.update({
   id: "/dev",
   path: "/dev",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const CalendarRoute = CalendarRouteImport.update({
+  id: "/calendar",
+  path: "/calendar",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AccountRoute = AccountRouteImport.update({
+  id: "/account",
+  path: "/account",
   getParentRoute: () => rootRouteImport,
 } as any);
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
+} as any);
+const InboxNewRoute = InboxNewRouteImport.update({
+  id: "/new",
+  path: "/new",
+  getParentRoute: () => InboxRoute,
+} as any);
+const InboxConversationIdRoute = InboxConversationIdRouteImport.update({
+  id: "/$conversationId",
+  path: "/$conversationId",
+  getParentRoute: () => InboxRoute,
 } as any);
 const DevSyncRoute = DevSyncRouteImport.update({
   id: "/sync",
@@ -54,11 +99,63 @@ const CoursesCourseIdModulesRoute = CoursesCourseIdModulesRouteImport.update({
   path: "/courses/$courseId/modules",
   getParentRoute: () => rootRouteImport,
 } as any);
+const CoursesCourseIdGradesRoute = CoursesCourseIdGradesRouteImport.update({
+  id: "/courses/$courseId/grades",
+  path: "/courses/$courseId/grades",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const CoursesCourseIdFilesRoute = CoursesCourseIdFilesRouteImport.update({
+  id: "/courses/$courseId/files",
+  path: "/courses/$courseId/files",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const CoursesCourseIdDiscussionsRoute =
+  CoursesCourseIdDiscussionsRouteImport.update({
+    id: "/courses/$courseId/discussions",
+    path: "/courses/$courseId/discussions",
+    getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdAnnouncementsRoute =
+  CoursesCourseIdAnnouncementsRouteImport.update({
+    id: "/courses/$courseId/announcements",
+    path: "/courses/$courseId/announcements",
+    getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdQuizzesIndexRoute =
+  CoursesCourseIdQuizzesIndexRouteImport.update({
+    id: "/courses/$courseId/quizzes/",
+    path: "/courses/$courseId/quizzes/",
+    getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdPagesIndexRoute =
+  CoursesCourseIdPagesIndexRouteImport.update({
+    id: "/courses/$courseId/pages/",
+    path: "/courses/$courseId/pages/",
+    getParentRoute: () => rootRouteImport,
+  } as any);
 const CoursesCourseIdAssignmentsIndexRoute =
   CoursesCourseIdAssignmentsIndexRouteImport.update({
     id: "/courses/$courseId/assignments/",
     path: "/courses/$courseId/assignments/",
     getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdQuizzesQuizIdRoute =
+  CoursesCourseIdQuizzesQuizIdRouteImport.update({
+    id: "/courses/$courseId/quizzes/$quizId",
+    path: "/courses/$courseId/quizzes/$quizId",
+    getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdPagesPageUrlRoute =
+  CoursesCourseIdPagesPageUrlRouteImport.update({
+    id: "/courses/$courseId/pages/$pageUrl",
+    path: "/courses/$courseId/pages/$pageUrl",
+    getParentRoute: () => rootRouteImport,
+  } as any);
+const CoursesCourseIdDiscussionsTopicIdRoute =
+  CoursesCourseIdDiscussionsTopicIdRouteImport.update({
+    id: "/$topicId",
+    path: "/$topicId",
+    getParentRoute: () => CoursesCourseIdDiscussionsRoute,
   } as any);
 const CoursesCourseIdAssignmentsAssignmentIdRoute =
   CoursesCourseIdAssignmentsAssignmentIdRouteImport.update({
@@ -69,91 +166,221 @@ const CoursesCourseIdAssignmentsAssignmentIdRoute =
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/account": typeof AccountRoute;
+  "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/inbox": typeof InboxRouteWithChildren;
+  "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
   "/dev/sync": typeof DevSyncRoute;
+  "/inbox/$conversationId": typeof InboxConversationIdRoute;
+  "/inbox/new": typeof InboxNewRoute;
+  "/courses/$courseId/announcements": typeof CoursesCourseIdAnnouncementsRoute;
+  "/courses/$courseId/discussions": typeof CoursesCourseIdDiscussionsRouteWithChildren;
+  "/courses/$courseId/files": typeof CoursesCourseIdFilesRoute;
+  "/courses/$courseId/grades": typeof CoursesCourseIdGradesRoute;
   "/courses/$courseId/modules": typeof CoursesCourseIdModulesRoute;
   "/courses/$courseId/people": typeof CoursesCourseIdPeopleRoute;
   "/courses/$courseId/": typeof CoursesCourseIdIndexRoute;
   "/courses/$courseId/assignments/$assignmentId": typeof CoursesCourseIdAssignmentsAssignmentIdRoute;
+  "/courses/$courseId/discussions/$topicId": typeof CoursesCourseIdDiscussionsTopicIdRoute;
+  "/courses/$courseId/pages/$pageUrl": typeof CoursesCourseIdPagesPageUrlRoute;
+  "/courses/$courseId/quizzes/$quizId": typeof CoursesCourseIdQuizzesQuizIdRoute;
   "/courses/$courseId/assignments/": typeof CoursesCourseIdAssignmentsIndexRoute;
+  "/courses/$courseId/pages/": typeof CoursesCourseIdPagesIndexRoute;
+  "/courses/$courseId/quizzes/": typeof CoursesCourseIdQuizzesIndexRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/account": typeof AccountRoute;
+  "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/inbox": typeof InboxRouteWithChildren;
+  "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
   "/dev/sync": typeof DevSyncRoute;
+  "/inbox/$conversationId": typeof InboxConversationIdRoute;
+  "/inbox/new": typeof InboxNewRoute;
+  "/courses/$courseId/announcements": typeof CoursesCourseIdAnnouncementsRoute;
+  "/courses/$courseId/discussions": typeof CoursesCourseIdDiscussionsRouteWithChildren;
+  "/courses/$courseId/files": typeof CoursesCourseIdFilesRoute;
+  "/courses/$courseId/grades": typeof CoursesCourseIdGradesRoute;
   "/courses/$courseId/modules": typeof CoursesCourseIdModulesRoute;
   "/courses/$courseId/people": typeof CoursesCourseIdPeopleRoute;
   "/courses/$courseId": typeof CoursesCourseIdIndexRoute;
   "/courses/$courseId/assignments/$assignmentId": typeof CoursesCourseIdAssignmentsAssignmentIdRoute;
+  "/courses/$courseId/discussions/$topicId": typeof CoursesCourseIdDiscussionsTopicIdRoute;
+  "/courses/$courseId/pages/$pageUrl": typeof CoursesCourseIdPagesPageUrlRoute;
+  "/courses/$courseId/quizzes/$quizId": typeof CoursesCourseIdQuizzesQuizIdRoute;
   "/courses/$courseId/assignments": typeof CoursesCourseIdAssignmentsIndexRoute;
+  "/courses/$courseId/pages": typeof CoursesCourseIdPagesIndexRoute;
+  "/courses/$courseId/quizzes": typeof CoursesCourseIdQuizzesIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
+  "/account": typeof AccountRoute;
+  "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/inbox": typeof InboxRouteWithChildren;
+  "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
   "/dev/sync": typeof DevSyncRoute;
+  "/inbox/$conversationId": typeof InboxConversationIdRoute;
+  "/inbox/new": typeof InboxNewRoute;
+  "/courses/$courseId/announcements": typeof CoursesCourseIdAnnouncementsRoute;
+  "/courses/$courseId/discussions": typeof CoursesCourseIdDiscussionsRouteWithChildren;
+  "/courses/$courseId/files": typeof CoursesCourseIdFilesRoute;
+  "/courses/$courseId/grades": typeof CoursesCourseIdGradesRoute;
   "/courses/$courseId/modules": typeof CoursesCourseIdModulesRoute;
   "/courses/$courseId/people": typeof CoursesCourseIdPeopleRoute;
   "/courses/$courseId/": typeof CoursesCourseIdIndexRoute;
   "/courses/$courseId/assignments/$assignmentId": typeof CoursesCourseIdAssignmentsAssignmentIdRoute;
+  "/courses/$courseId/discussions/$topicId": typeof CoursesCourseIdDiscussionsTopicIdRoute;
+  "/courses/$courseId/pages/$pageUrl": typeof CoursesCourseIdPagesPageUrlRoute;
+  "/courses/$courseId/quizzes/$quizId": typeof CoursesCourseIdQuizzesQuizIdRoute;
   "/courses/$courseId/assignments/": typeof CoursesCourseIdAssignmentsIndexRoute;
+  "/courses/$courseId/pages/": typeof CoursesCourseIdPagesIndexRoute;
+  "/courses/$courseId/quizzes/": typeof CoursesCourseIdQuizzesIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
+    | "/account"
+    | "/calendar"
     | "/dev"
+    | "/inbox"
+    | "/planner"
     | "/dev/mutations"
     | "/dev/sync"
+    | "/inbox/$conversationId"
+    | "/inbox/new"
+    | "/courses/$courseId/announcements"
+    | "/courses/$courseId/discussions"
+    | "/courses/$courseId/files"
+    | "/courses/$courseId/grades"
     | "/courses/$courseId/modules"
     | "/courses/$courseId/people"
     | "/courses/$courseId/"
     | "/courses/$courseId/assignments/$assignmentId"
-    | "/courses/$courseId/assignments/";
+    | "/courses/$courseId/discussions/$topicId"
+    | "/courses/$courseId/pages/$pageUrl"
+    | "/courses/$courseId/quizzes/$quizId"
+    | "/courses/$courseId/assignments/"
+    | "/courses/$courseId/pages/"
+    | "/courses/$courseId/quizzes/";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
+    | "/account"
+    | "/calendar"
     | "/dev"
+    | "/inbox"
+    | "/planner"
     | "/dev/mutations"
     | "/dev/sync"
+    | "/inbox/$conversationId"
+    | "/inbox/new"
+    | "/courses/$courseId/announcements"
+    | "/courses/$courseId/discussions"
+    | "/courses/$courseId/files"
+    | "/courses/$courseId/grades"
     | "/courses/$courseId/modules"
     | "/courses/$courseId/people"
     | "/courses/$courseId"
     | "/courses/$courseId/assignments/$assignmentId"
-    | "/courses/$courseId/assignments";
+    | "/courses/$courseId/discussions/$topicId"
+    | "/courses/$courseId/pages/$pageUrl"
+    | "/courses/$courseId/quizzes/$quizId"
+    | "/courses/$courseId/assignments"
+    | "/courses/$courseId/pages"
+    | "/courses/$courseId/quizzes";
   id:
     | "__root__"
     | "/"
+    | "/account"
+    | "/calendar"
     | "/dev"
+    | "/inbox"
+    | "/planner"
     | "/dev/mutations"
     | "/dev/sync"
+    | "/inbox/$conversationId"
+    | "/inbox/new"
+    | "/courses/$courseId/announcements"
+    | "/courses/$courseId/discussions"
+    | "/courses/$courseId/files"
+    | "/courses/$courseId/grades"
     | "/courses/$courseId/modules"
     | "/courses/$courseId/people"
     | "/courses/$courseId/"
     | "/courses/$courseId/assignments/$assignmentId"
-    | "/courses/$courseId/assignments/";
+    | "/courses/$courseId/discussions/$topicId"
+    | "/courses/$courseId/pages/$pageUrl"
+    | "/courses/$courseId/quizzes/$quizId"
+    | "/courses/$courseId/assignments/"
+    | "/courses/$courseId/pages/"
+    | "/courses/$courseId/quizzes/";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  AccountRoute: typeof AccountRoute;
+  CalendarRoute: typeof CalendarRoute;
   DevRoute: typeof DevRouteWithChildren;
+  InboxRoute: typeof InboxRouteWithChildren;
+  PlannerRoute: typeof PlannerRoute;
+  CoursesCourseIdAnnouncementsRoute: typeof CoursesCourseIdAnnouncementsRoute;
+  CoursesCourseIdDiscussionsRoute: typeof CoursesCourseIdDiscussionsRouteWithChildren;
+  CoursesCourseIdFilesRoute: typeof CoursesCourseIdFilesRoute;
+  CoursesCourseIdGradesRoute: typeof CoursesCourseIdGradesRoute;
   CoursesCourseIdModulesRoute: typeof CoursesCourseIdModulesRoute;
   CoursesCourseIdPeopleRoute: typeof CoursesCourseIdPeopleRoute;
   CoursesCourseIdIndexRoute: typeof CoursesCourseIdIndexRoute;
   CoursesCourseIdAssignmentsAssignmentIdRoute: typeof CoursesCourseIdAssignmentsAssignmentIdRoute;
+  CoursesCourseIdPagesPageUrlRoute: typeof CoursesCourseIdPagesPageUrlRoute;
+  CoursesCourseIdQuizzesQuizIdRoute: typeof CoursesCourseIdQuizzesQuizIdRoute;
   CoursesCourseIdAssignmentsIndexRoute: typeof CoursesCourseIdAssignmentsIndexRoute;
+  CoursesCourseIdPagesIndexRoute: typeof CoursesCourseIdPagesIndexRoute;
+  CoursesCourseIdQuizzesIndexRoute: typeof CoursesCourseIdQuizzesIndexRoute;
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/planner": {
+      id: "/planner";
+      path: "/planner";
+      fullPath: "/planner";
+      preLoaderRoute: typeof PlannerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/inbox": {
+      id: "/inbox";
+      path: "/inbox";
+      fullPath: "/inbox";
+      preLoaderRoute: typeof InboxRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/dev": {
       id: "/dev";
       path: "/dev";
       fullPath: "/dev";
       preLoaderRoute: typeof DevRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/calendar": {
+      id: "/calendar";
+      path: "/calendar";
+      fullPath: "/calendar";
+      preLoaderRoute: typeof CalendarRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/account": {
+      id: "/account";
+      path: "/account";
+      fullPath: "/account";
+      preLoaderRoute: typeof AccountRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/": {
@@ -162,6 +389,20 @@ declare module "@tanstack/react-router" {
       fullPath: "/";
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
+    };
+    "/inbox/new": {
+      id: "/inbox/new";
+      path: "/new";
+      fullPath: "/inbox/new";
+      preLoaderRoute: typeof InboxNewRouteImport;
+      parentRoute: typeof InboxRoute;
+    };
+    "/inbox/$conversationId": {
+      id: "/inbox/$conversationId";
+      path: "/$conversationId";
+      fullPath: "/inbox/$conversationId";
+      preLoaderRoute: typeof InboxConversationIdRouteImport;
+      parentRoute: typeof InboxRoute;
     };
     "/dev/sync": {
       id: "/dev/sync";
@@ -198,12 +439,75 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof CoursesCourseIdModulesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/courses/$courseId/grades": {
+      id: "/courses/$courseId/grades";
+      path: "/courses/$courseId/grades";
+      fullPath: "/courses/$courseId/grades";
+      preLoaderRoute: typeof CoursesCourseIdGradesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/files": {
+      id: "/courses/$courseId/files";
+      path: "/courses/$courseId/files";
+      fullPath: "/courses/$courseId/files";
+      preLoaderRoute: typeof CoursesCourseIdFilesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/discussions": {
+      id: "/courses/$courseId/discussions";
+      path: "/courses/$courseId/discussions";
+      fullPath: "/courses/$courseId/discussions";
+      preLoaderRoute: typeof CoursesCourseIdDiscussionsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/announcements": {
+      id: "/courses/$courseId/announcements";
+      path: "/courses/$courseId/announcements";
+      fullPath: "/courses/$courseId/announcements";
+      preLoaderRoute: typeof CoursesCourseIdAnnouncementsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/quizzes/": {
+      id: "/courses/$courseId/quizzes/";
+      path: "/courses/$courseId/quizzes";
+      fullPath: "/courses/$courseId/quizzes/";
+      preLoaderRoute: typeof CoursesCourseIdQuizzesIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/pages/": {
+      id: "/courses/$courseId/pages/";
+      path: "/courses/$courseId/pages";
+      fullPath: "/courses/$courseId/pages/";
+      preLoaderRoute: typeof CoursesCourseIdPagesIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/courses/$courseId/assignments/": {
       id: "/courses/$courseId/assignments/";
       path: "/courses/$courseId/assignments";
       fullPath: "/courses/$courseId/assignments/";
       preLoaderRoute: typeof CoursesCourseIdAssignmentsIndexRouteImport;
       parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/quizzes/$quizId": {
+      id: "/courses/$courseId/quizzes/$quizId";
+      path: "/courses/$courseId/quizzes/$quizId";
+      fullPath: "/courses/$courseId/quizzes/$quizId";
+      preLoaderRoute: typeof CoursesCourseIdQuizzesQuizIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/pages/$pageUrl": {
+      id: "/courses/$courseId/pages/$pageUrl";
+      path: "/courses/$courseId/pages/$pageUrl";
+      fullPath: "/courses/$courseId/pages/$pageUrl";
+      preLoaderRoute: typeof CoursesCourseIdPagesPageUrlRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/courses/$courseId/discussions/$topicId": {
+      id: "/courses/$courseId/discussions/$topicId";
+      path: "/$topicId";
+      fullPath: "/courses/$courseId/discussions/$topicId";
+      preLoaderRoute: typeof CoursesCourseIdDiscussionsTopicIdRouteImport;
+      parentRoute: typeof CoursesCourseIdDiscussionsRoute;
     };
     "/courses/$courseId/assignments/$assignmentId": {
       id: "/courses/$courseId/assignments/$assignmentId";
@@ -227,15 +531,54 @@ const DevRouteChildren: DevRouteChildren = {
 
 const DevRouteWithChildren = DevRoute._addFileChildren(DevRouteChildren);
 
+interface InboxRouteChildren {
+  InboxConversationIdRoute: typeof InboxConversationIdRoute;
+  InboxNewRoute: typeof InboxNewRoute;
+}
+
+const InboxRouteChildren: InboxRouteChildren = {
+  InboxConversationIdRoute: InboxConversationIdRoute,
+  InboxNewRoute: InboxNewRoute,
+};
+
+const InboxRouteWithChildren = InboxRoute._addFileChildren(InboxRouteChildren);
+
+interface CoursesCourseIdDiscussionsRouteChildren {
+  CoursesCourseIdDiscussionsTopicIdRoute: typeof CoursesCourseIdDiscussionsTopicIdRoute;
+}
+
+const CoursesCourseIdDiscussionsRouteChildren: CoursesCourseIdDiscussionsRouteChildren =
+  {
+    CoursesCourseIdDiscussionsTopicIdRoute:
+      CoursesCourseIdDiscussionsTopicIdRoute,
+  };
+
+const CoursesCourseIdDiscussionsRouteWithChildren =
+  CoursesCourseIdDiscussionsRoute._addFileChildren(
+    CoursesCourseIdDiscussionsRouteChildren,
+  );
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
+  CalendarRoute: CalendarRoute,
   DevRoute: DevRouteWithChildren,
+  InboxRoute: InboxRouteWithChildren,
+  PlannerRoute: PlannerRoute,
+  CoursesCourseIdAnnouncementsRoute: CoursesCourseIdAnnouncementsRoute,
+  CoursesCourseIdDiscussionsRoute: CoursesCourseIdDiscussionsRouteWithChildren,
+  CoursesCourseIdFilesRoute: CoursesCourseIdFilesRoute,
+  CoursesCourseIdGradesRoute: CoursesCourseIdGradesRoute,
   CoursesCourseIdModulesRoute: CoursesCourseIdModulesRoute,
   CoursesCourseIdPeopleRoute: CoursesCourseIdPeopleRoute,
   CoursesCourseIdIndexRoute: CoursesCourseIdIndexRoute,
   CoursesCourseIdAssignmentsAssignmentIdRoute:
     CoursesCourseIdAssignmentsAssignmentIdRoute,
+  CoursesCourseIdPagesPageUrlRoute: CoursesCourseIdPagesPageUrlRoute,
+  CoursesCourseIdQuizzesQuizIdRoute: CoursesCourseIdQuizzesQuizIdRoute,
   CoursesCourseIdAssignmentsIndexRoute: CoursesCourseIdAssignmentsIndexRoute,
+  CoursesCourseIdPagesIndexRoute: CoursesCourseIdPagesIndexRoute,
+  CoursesCourseIdQuizzesIndexRoute: CoursesCourseIdQuizzesIndexRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

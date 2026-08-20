@@ -1,7 +1,7 @@
 import {
+	type CanvasAccountRef,
 	fetchNormalizedAssignments,
 	fetchNormalizedCourses,
-	type CanvasAccountRef,
 } from "@canvas-v5/canvas-core";
 import {
 	createContext,
@@ -16,16 +16,30 @@ import {
 import { CanvasIndexedDbStore, emptySnapshot } from "./store";
 import type {
 	CanvasActivityItem,
+	CanvasAnnouncement,
 	CanvasAssignment,
+	CanvasCalendarItem,
+	CanvasCommunicationChannel,
 	CanvasConnectionInput,
+	CanvasConversation,
 	CanvasCourseDefaultView,
 	CanvasCourseHome,
+	CanvasCourseTab,
 	CanvasCourseUser,
+	CanvasDiscussionEntry,
+	CanvasDiscussionTopic,
+	CanvasEnrollment,
+	CanvasFile,
 	CanvasModule,
 	CanvasModuleItem,
+	CanvasNotificationPreference,
 	CanvasPage,
+	CanvasPlannerItem,
+	CanvasQuiz,
 	CanvasRuntimeMode,
 	CanvasRuntimeSnapshot,
+	CanvasSubmission,
+	CanvasSubmissionInput,
 	CanvasTransport,
 	CourseOverlay,
 	OverlayTransport,
@@ -86,6 +100,18 @@ export class CanvasRuntime {
 				this.syncCourseOverlays(),
 			]);
 		}
+	}
+
+	async signOutApp() {
+		await this.options.overlayTransport.signOutApp();
+		this.setSnapshot({
+			...this.snapshot,
+			appAuth: { status: "unauthenticated", reason: "Signed out." },
+			accounts: [],
+			activeAccount: undefined,
+		});
+		this.options.canvasTransport.setActiveAccount?.(undefined);
+		await this.store.replaceAll("connections", []);
 	}
 
 	async switchCanvasAccount(
@@ -476,6 +502,495 @@ export class CanvasRuntime {
 		}
 	}
 
+	async syncEnrollments(courseId: number) {
+		this.setScope("enrollments", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasEnrollment>(
+					`/api/v1/courses/${courseId}/enrollments?state[]=active&per_page=100`,
+				);
+			const enrollments = [
+				...this.snapshot.enrollments.filter(
+					(enrollment) => enrollment.course_id !== courseId,
+				),
+				...records.map((record) => ({ ...record, course_id: courseId })),
+			];
+			this.setSnapshot({ ...this.snapshot, enrollments });
+			await this.store.replaceAll("enrollments", enrollments);
+			this.finishScope("enrollments");
+		} catch (error) {
+			this.failScope("enrollments", error, "Unable to sync enrollments.");
+		}
+	}
+
+	async syncAnnouncements(courseId: number) {
+		this.setScope("announcements", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasAnnouncement>(
+					`/api/v1/announcements?context_codes[]=course_${courseId}&per_page=100`,
+				);
+			const announcements = [
+				...this.snapshot.announcements.filter(
+					(announcement) => announcement.course_id !== courseId,
+				),
+				...records.map((record) => ({ ...record, course_id: courseId })),
+			];
+			this.setSnapshot({ ...this.snapshot, announcements });
+			await this.store.replaceAll("announcements", announcements);
+			this.finishScope("announcements");
+		} catch (error) {
+			this.failScope("announcements", error, "Unable to sync announcements.");
+		}
+	}
+
+	async syncPages(courseId: number) {
+		this.setScope("pages", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasPage>(
+					`/api/v1/courses/${courseId}/pages?per_page=100`,
+				);
+			const normalized = records.map((record) => ({
+				...record,
+				id: `${courseId}:${record.url}`,
+				course_id: courseId,
+			}));
+			const pages = [
+				...this.snapshot.pages.filter((page) => page.course_id !== courseId),
+				...normalized,
+			];
+			this.setSnapshot({ ...this.snapshot, pages });
+			await this.store.replaceAll("pages", pages);
+			this.finishScope("pages");
+		} catch (error) {
+			this.failScope("pages", error, "Unable to sync pages.");
+		}
+	}
+
+	async syncPage(courseId: number, pageUrl: string) {
+		this.setScope("pages", { status: "syncing", pendingJobs: 1 });
+		try {
+			const record = await this.options.canvasTransport.request<CanvasPage>(
+				`/api/v1/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`,
+			);
+			const page = {
+				...record,
+				id: `${courseId}:${record.url}`,
+				course_id: courseId,
+			};
+			const pages = [
+				...this.snapshot.pages.filter((candidate) => candidate.id !== page.id),
+				page,
+			];
+			this.setSnapshot({ ...this.snapshot, pages });
+			await this.store.replaceAll("pages", pages);
+			this.finishScope("pages");
+		} catch (error) {
+			this.failScope("pages", error, "Unable to sync this page.");
+		}
+	}
+
+	async syncQuizzes(courseId: number) {
+		this.setScope("quizzes", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasQuiz>(
+					`/api/v1/courses/${courseId}/quizzes?per_page=100`,
+				);
+			const quizzes = [
+				...this.snapshot.quizzes.filter((quiz) => quiz.course_id !== courseId),
+				...records.map((record) => ({ ...record, course_id: courseId })),
+			];
+			this.setSnapshot({ ...this.snapshot, quizzes });
+			await this.store.replaceAll("quizzes", quizzes);
+			this.finishScope("quizzes");
+		} catch (error) {
+			this.failScope("quizzes", error, "Unable to sync quizzes.");
+		}
+	}
+
+	async syncQuiz(courseId: number, quizId: number) {
+		this.setScope("quizzes", { status: "syncing", pendingJobs: 1 });
+		try {
+			const record = await this.options.canvasTransport.request<CanvasQuiz>(
+				`/api/v1/courses/${courseId}/quizzes/${quizId}`,
+			);
+			const quiz = { ...record, id: quizId, course_id: courseId };
+			const quizzes = [
+				...this.snapshot.quizzes.filter(
+					(candidate) =>
+						!(candidate.course_id === courseId && candidate.id === quizId),
+				),
+				quiz,
+			];
+			this.setSnapshot({ ...this.snapshot, quizzes });
+			await this.store.replaceAll("quizzes", quizzes);
+			this.finishScope("quizzes");
+		} catch (error) {
+			this.failScope("quizzes", error, "Unable to sync this quiz.");
+		}
+	}
+
+	async syncDiscussions(courseId: number) {
+		this.setScope("discussions", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasDiscussionTopic>(
+					`/api/v1/courses/${courseId}/discussion_topics?order_by=recent_activity&per_page=100`,
+				);
+			const discussions = [
+				...this.snapshot.discussions.filter(
+					(discussion) => discussion.course_id !== courseId,
+				),
+				...records.map((record) => ({ ...record, course_id: courseId })),
+			];
+			this.setSnapshot({ ...this.snapshot, discussions });
+			await this.store.replaceAll("discussions", discussions);
+			this.finishScope("discussions");
+		} catch (error) {
+			this.failScope("discussions", error, "Unable to sync discussions.");
+		}
+	}
+
+	async syncDiscussion(courseId: number, topicId: number) {
+		this.setScope("discussion-entries", { status: "syncing", pendingJobs: 1 });
+		try {
+			const view = await this.options.canvasTransport.request<{
+				view?: CanvasDiscussionEntry[];
+				entries?: CanvasDiscussionEntry[];
+			}>(`/api/v1/courses/${courseId}/discussion_topics/${topicId}/view`);
+			const records = view.view ?? view.entries ?? [];
+			const normalizeEntry = (
+				entry: CanvasDiscussionEntry,
+			): CanvasDiscussionEntry => ({
+				...entry,
+				course_id: courseId,
+				topic_id: topicId,
+				replies: entry.replies?.map(normalizeEntry),
+			});
+			const normalized = records.map(normalizeEntry);
+			const discussionEntries = [
+				...this.snapshot.discussionEntries.filter(
+					(entry) =>
+						!(entry.course_id === courseId && entry.topic_id === topicId),
+				),
+				...normalized,
+			];
+			this.setSnapshot({ ...this.snapshot, discussionEntries });
+			await this.store.replaceAll("discussionEntries", discussionEntries);
+			this.finishScope("discussion-entries");
+		} catch (error) {
+			this.failScope(
+				"discussion-entries",
+				error,
+				"Unable to sync this discussion.",
+			);
+		}
+	}
+
+	async addDiscussionEntry(courseId: number, topicId: number, message: string) {
+		await this.options.canvasTransport.request<CanvasDiscussionEntry>(
+			`/api/v1/courses/${courseId}/discussion_topics/${topicId}/entries`,
+			{ method: "POST", body: { message } },
+		);
+		await this.syncDiscussion(courseId, topicId);
+	}
+
+	async addDiscussionReply(
+		courseId: number,
+		topicId: number,
+		entryId: number,
+		message: string,
+	) {
+		await this.options.canvasTransport.request<CanvasDiscussionEntry>(
+			`/api/v1/courses/${courseId}/discussion_topics/${topicId}/entries/${entryId}/replies`,
+			{ method: "POST", body: { message } },
+		);
+		await this.syncDiscussion(courseId, topicId);
+	}
+
+	async syncFiles(courseId: number) {
+		this.setScope("files", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasFile>(
+					`/api/v1/courses/${courseId}/files?sort=updated_at&order=desc&per_page=100`,
+				);
+			const files = [
+				...this.snapshot.files.filter((file) => file.course_id !== courseId),
+				...records.map((record) => ({ ...record, course_id: courseId })),
+			];
+			this.setSnapshot({ ...this.snapshot, files });
+			await this.store.replaceAll("files", files);
+			this.finishScope("files");
+		} catch (error) {
+			this.failScope("files", error, "Unable to sync files.");
+		}
+	}
+
+	async syncCourseTabs(courseId: number) {
+		this.setScope("course-tabs", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasCourseTab>(
+					`/api/v1/courses/${courseId}/tabs?per_page=100`,
+				);
+			const normalized = records.map((record) => ({
+				...record,
+				id: `${courseId}:${record.id}`,
+				canvas_tab_id: record.id,
+				course_id: courseId,
+			}));
+			const courseTabs = [
+				...this.snapshot.courseTabs.filter((tab) => tab.course_id !== courseId),
+				...normalized,
+			];
+			this.setSnapshot({ ...this.snapshot, courseTabs });
+			await this.store.replaceAll("courseTabs", courseTabs);
+			this.finishScope("course-tabs");
+		} catch (error) {
+			this.failScope("course-tabs", error, "Unable to sync course navigation.");
+		}
+	}
+
+	async syncPlanner() {
+		this.setScope("planner", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasPlannerItem>(
+					"/api/v1/planner/items?per_page=100",
+				);
+			const plannerItems = records.map((record) => ({
+				...record,
+				id: `${record.plannable_type}:${record.plannable_id}:${record.plannable_date ?? ""}`,
+			}));
+			this.setSnapshot({ ...this.snapshot, plannerItems });
+			await this.store.replaceAll("plannerItems", plannerItems);
+			this.finishScope("planner");
+		} catch (error) {
+			this.failScope("planner", error, "Unable to sync the planner.");
+		}
+	}
+
+	async syncCalendar() {
+		this.setScope("calendar", { status: "syncing", pendingJobs: 2 });
+		try {
+			const [events, assignments] = await Promise.all([
+				this.options.canvasTransport.paginatedRequest<CanvasCalendarItem>(
+					"/api/v1/calendar_events?type=event&all_events=true&per_page=100",
+				),
+				this.options.canvasTransport.paginatedRequest<CanvasCalendarItem>(
+					"/api/v1/calendar_events?type=assignment&all_events=true&per_page=100",
+				),
+			]);
+			const calendarItems = [...events, ...assignments].map(
+				(record, index) => ({
+					...record,
+					id: String(
+						record.id ?? `${record.context_code ?? "calendar"}:${index}`,
+					),
+				}),
+			);
+			this.setSnapshot({ ...this.snapshot, calendarItems });
+			await this.store.replaceAll("calendarItems", calendarItems);
+			this.finishScope("calendar");
+		} catch (error) {
+			this.failScope("calendar", error, "Unable to sync the calendar.");
+		}
+	}
+
+	async setPlannerItemComplete(
+		item: CanvasPlannerItem,
+		markedComplete: boolean,
+	) {
+		const override = item.planner_override?.id
+			? await this.options.canvasTransport.request<
+					CanvasPlannerItem["planner_override"]
+				>(`/api/v1/planner/overrides/${item.planner_override.id}`, {
+					method: "PUT",
+					body: { marked_complete: markedComplete },
+				})
+			: await this.options.canvasTransport.request<
+					CanvasPlannerItem["planner_override"]
+				>("/api/v1/planner/overrides", {
+					method: "POST",
+					body: {
+						plannable_type: item.plannable_type.toLowerCase(),
+						plannable_id: item.plannable_id,
+						marked_complete: markedComplete,
+					},
+				});
+		const plannerItems = this.snapshot.plannerItems.map((candidate) =>
+			candidate.id === item.id
+				? { ...candidate, planner_override: override }
+				: candidate,
+		);
+		this.setSnapshot({ ...this.snapshot, plannerItems });
+		await this.store.replaceAll("plannerItems", plannerItems);
+	}
+
+	async createPlannerNote(input: {
+		title: string;
+		details?: string;
+		todoDate: string;
+		courseId?: number;
+	}) {
+		await this.options.canvasTransport.request<Record<string, unknown>>(
+			"/api/v1/planner_notes",
+			{
+				method: "POST",
+				body: {
+					title: input.title,
+					details: input.details,
+					todo_date: input.todoDate,
+					course_id: input.courseId,
+				},
+			},
+		);
+		await this.syncPlanner();
+	}
+
+	async syncConversations() {
+		this.setScope("conversations", { status: "syncing", pendingJobs: 1 });
+		try {
+			const records =
+				await this.options.canvasTransport.paginatedRequest<CanvasConversation>(
+					"/api/v1/conversations?scope=inbox&per_page=100",
+				);
+			const conversations = records.map((record) => ({
+				...record,
+				id: String(record.id),
+			}));
+			this.setSnapshot({ ...this.snapshot, conversations });
+			await this.store.replaceAll("conversations", conversations);
+			this.finishScope("conversations");
+		} catch (error) {
+			this.failScope("conversations", error, "Unable to sync messages.");
+		}
+	}
+
+	async syncConversation(conversationId: string) {
+		this.setScope("conversations", { status: "syncing", pendingJobs: 1 });
+		try {
+			const record =
+				await this.options.canvasTransport.request<CanvasConversation>(
+					`/api/v1/conversations/${encodeURIComponent(conversationId)}?auto_mark_as_read=true`,
+				);
+			const conversation = { ...record, id: String(record.id) };
+			const conversations = [
+				...this.snapshot.conversations.filter(
+					(candidate) => candidate.id !== conversation.id,
+				),
+				conversation,
+			];
+			this.setSnapshot({ ...this.snapshot, conversations });
+			await this.store.replaceAll("conversations", conversations);
+			this.finishScope("conversations");
+		} catch (error) {
+			this.failScope(
+				"conversations",
+				error,
+				"Unable to sync this conversation.",
+			);
+		}
+	}
+
+	async addConversationMessage(conversationId: string, body: string) {
+		await this.options.canvasTransport.request<CanvasConversation>(
+			`/api/v1/conversations/${encodeURIComponent(conversationId)}/add_message`,
+			{ method: "POST", body: { body } },
+		);
+		await this.syncConversation(conversationId);
+	}
+
+	async createConversation(input: {
+		recipients: Array<string | number>;
+		subject?: string;
+		body: string;
+	}) {
+		await this.options.canvasTransport.request<CanvasConversation[]>(
+			"/api/v1/conversations",
+			{
+				method: "POST",
+				body: {
+					recipients: input.recipients.map(String),
+					subject: input.subject,
+					body: input.body,
+					group_conversation: input.recipients.length > 1,
+				},
+			},
+		);
+		await this.syncConversations();
+	}
+
+	async syncNotificationPreferences() {
+		this.setScope("notifications", { status: "syncing", pendingJobs: 1 });
+		try {
+			const communicationChannels =
+				await this.options.canvasTransport.paginatedRequest<CanvasCommunicationChannel>(
+					"/api/v1/users/self/communication_channels?per_page=100",
+				);
+			const preferenceGroups = await Promise.all(
+				communicationChannels.map(async (channel) => {
+					const records =
+						await this.options.canvasTransport.paginatedRequest<CanvasNotificationPreference>(
+							`/api/v1/users/self/communication_channels/${channel.id}/notification_preferences?per_page=100`,
+						);
+					return records.map((record) => ({
+						...record,
+						id: `${channel.id}:${record.notification}`,
+						channel_id: channel.id,
+					}));
+				}),
+			);
+			const notificationPreferences = preferenceGroups.flat();
+			this.setSnapshot({
+				...this.snapshot,
+				communicationChannels,
+				notificationPreferences,
+			});
+			await Promise.all([
+				this.store.replaceAll("communicationChannels", communicationChannels),
+				this.store.replaceAll(
+					"notificationPreferences",
+					notificationPreferences,
+				),
+			]);
+			this.finishScope("notifications");
+		} catch (error) {
+			this.failScope(
+				"notifications",
+				error,
+				"Unable to sync notification settings.",
+			);
+		}
+	}
+
+	async updateNotificationPreference(
+		preference: CanvasNotificationPreference,
+		frequency: CanvasNotificationPreference["frequency"],
+	) {
+		await this.options.canvasTransport.request<CanvasNotificationPreference>(
+			`/api/v1/users/self/communication_channels/${preference.channel_id}/notification_preferences/${encodeURIComponent(preference.notification)}`,
+			{
+				method: "PUT",
+				body: { notification_preferences: { frequency } },
+			},
+		);
+		const notificationPreferences = this.snapshot.notificationPreferences.map(
+			(candidate) =>
+				candidate.id === preference.id
+					? { ...candidate, frequency }
+					: candidate,
+		);
+		this.setSnapshot({ ...this.snapshot, notificationPreferences });
+		await this.store.replaceAll(
+			"notificationPreferences",
+			notificationPreferences,
+		);
+	}
+
 	async syncModules(courseId: number) {
 		this.setScope("modules", { status: "syncing", pendingJobs: 1 });
 		try {
@@ -527,7 +1042,7 @@ export class CanvasRuntime {
 		try {
 			const assignment =
 				await this.options.canvasTransport.request<CanvasAssignment>(
-					`/api/v1/courses/${courseId}/assignments/${assignmentId}`,
+					`/api/v1/courses/${courseId}/assignments/${assignmentId}?include[]=submission&include[]=rubric_assessment&include[]=score_statistics`,
 				);
 			const normalizedAssignment = {
 				...assignment,
@@ -558,6 +1073,91 @@ export class CanvasRuntime {
 				error:
 					error instanceof Error ? error.message : "Unable to sync assignment.",
 			});
+		}
+	}
+
+	async syncSubmission(courseId: number, assignmentId: number) {
+		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
+		try {
+			const record =
+				await this.options.canvasTransport.request<CanvasSubmission>(
+					`/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/self?include[]=submission_history&include[]=submission_comments&include[]=rubric_assessment`,
+				);
+			const submission: CanvasSubmission = {
+				...record,
+				id: `${courseId}:${assignmentId}:self`,
+				course_id: courseId,
+				assignment_id: assignmentId,
+			};
+			const submissions = [
+				...this.snapshot.submissions.filter(
+					(candidate) =>
+						!(
+							candidate.course_id === courseId &&
+							candidate.assignment_id === assignmentId
+						),
+				),
+				submission,
+			];
+			this.setSnapshot({ ...this.snapshot, submissions });
+			await this.store.replaceAll("submissions", submissions);
+			this.finishScope("submissions");
+			return submission;
+		} catch (error) {
+			this.failScope("submissions", error, "Unable to sync your submission.");
+			return undefined;
+		}
+	}
+
+	async submitAssignment(
+		courseId: number,
+		assignmentId: number,
+		input: CanvasSubmissionInput,
+	) {
+		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
+		try {
+			await this.options.canvasTransport.request<CanvasSubmission>(
+				`/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions`,
+				{
+					method: "POST",
+					body: {
+						submission: {
+							submission_type: input.type,
+							...(input.type === "online_text_entry"
+								? { body: input.text ?? "" }
+								: { url: input.url ?? "" }),
+						},
+						...(input.comment
+							? { comment: { text_comment: input.comment } }
+							: {}),
+					},
+				},
+			);
+			return await this.syncSubmission(courseId, assignmentId);
+		} catch (error) {
+			this.failScope("submissions", error, "Unable to submit this assignment.");
+			throw error;
+		}
+	}
+
+	async addSubmissionComment(
+		courseId: number,
+		assignmentId: number,
+		comment: string,
+	) {
+		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
+		try {
+			await this.options.canvasTransport.request<CanvasSubmission>(
+				`/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/self`,
+				{
+					method: "PUT",
+					body: { comment: { text_comment: comment } },
+				},
+			);
+			return await this.syncSubmission(courseId, assignmentId);
+		} catch (error) {
+			this.failScope("submissions", error, "Unable to add your comment.");
+			throw error;
 		}
 	}
 
@@ -786,6 +1386,23 @@ export class CanvasRuntime {
 		}
 	}
 
+	private finishScope(scope: SyncScope) {
+		this.setScope(scope, {
+			status: "idle",
+			pendingJobs: 0,
+			lastSyncedAt: new Date().toISOString(),
+			error: undefined,
+		});
+	}
+
+	private failScope(scope: SyncScope, error: unknown, fallback: string) {
+		this.setScope(scope, {
+			status: "error",
+			pendingJobs: 0,
+			error: error instanceof Error ? error.message : fallback,
+		});
+	}
+
 	private setScope(scope: SyncScope, patch: Partial<SyncScopeState>) {
 		const syncScopes = this.snapshot.syncScopes.map((item) =>
 			item.scope === scope ? { ...item, ...patch } : item,
@@ -932,6 +1549,22 @@ export function useCoursePeople(courseId: number | string) {
 	return people.filter((person) => person.course_id === normalizedCourseId);
 }
 
+export function useAllCoursePeople() {
+	const runtime = useCanvasRuntime();
+	const snapshot = useCanvasSnapshot();
+	const courseIds = snapshot.courses.map((course) => course.id).join(",");
+	useEffect(() => {
+		if (courseIds) {
+			void Promise.all(
+				courseIds
+					.split(",")
+					.map((courseId) => runtime.syncPeople(Number(courseId))),
+			);
+		}
+	}, [courseIds, runtime]);
+	return snapshot.people;
+}
+
 export function useAssignment(
 	courseId: number | string,
 	assignmentId: number | string,
@@ -978,14 +1611,223 @@ export function useModules(courseId?: number | string) {
 }
 
 export function useAnnouncements(courseId?: number | string) {
+	const runtime = useCanvasRuntime();
 	const announcements = useCanvasSnapshot().announcements;
 	const normalizedCourseId =
 		courseId === undefined ? undefined : Number(courseId);
+	useEffect(() => {
+		if (
+			normalizedCourseId !== undefined &&
+			Number.isFinite(normalizedCourseId)
+		) {
+			void runtime.syncAnnouncements(normalizedCourseId);
+		}
+	}, [normalizedCourseId, runtime]);
 	return normalizedCourseId === undefined
 		? announcements
 		: announcements.filter(
 				(announcement) => announcement.course_id === normalizedCourseId,
 			);
+}
+
+export function usePages(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const pages = useCanvasSnapshot().pages;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId))
+			void runtime.syncPages(normalizedCourseId);
+	}, [normalizedCourseId, runtime]);
+	return pages.filter((page) => page.course_id === normalizedCourseId);
+}
+
+export function usePage(courseId: number | string, pageUrl: string) {
+	const runtime = useCanvasRuntime();
+	const pages = useCanvasSnapshot().pages;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId) && pageUrl) {
+			void runtime.syncPage(normalizedCourseId, pageUrl);
+		}
+	}, [normalizedCourseId, pageUrl, runtime]);
+	return pages.find(
+		(page) => page.course_id === normalizedCourseId && page.url === pageUrl,
+	);
+}
+
+export function useQuizzes(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const quizzes = useCanvasSnapshot().quizzes;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId))
+			void runtime.syncQuizzes(normalizedCourseId);
+	}, [normalizedCourseId, runtime]);
+	return quizzes.filter((quiz) => quiz.course_id === normalizedCourseId);
+}
+
+export function useQuiz(courseId: number | string, quizId: number | string) {
+	const runtime = useCanvasRuntime();
+	const quizzes = useCanvasSnapshot().quizzes;
+	const normalizedCourseId = Number(courseId);
+	const normalizedQuizId = Number(quizId);
+	useEffect(() => {
+		if (
+			Number.isFinite(normalizedCourseId) &&
+			Number.isFinite(normalizedQuizId)
+		) {
+			void runtime.syncQuiz(normalizedCourseId, normalizedQuizId);
+		}
+	}, [normalizedCourseId, normalizedQuizId, runtime]);
+	return quizzes.find(
+		(quiz) =>
+			quiz.course_id === normalizedCourseId && quiz.id === normalizedQuizId,
+	);
+}
+
+export function useDiscussions(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const discussions = useCanvasSnapshot().discussions;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId)) {
+			void runtime.syncDiscussions(normalizedCourseId);
+		}
+	}, [normalizedCourseId, runtime]);
+	return discussions.filter(
+		(discussion) => discussion.course_id === normalizedCourseId,
+	);
+}
+
+export function useDiscussion(
+	courseId: number | string,
+	topicId: number | string,
+) {
+	const runtime = useCanvasRuntime();
+	const snapshot = useCanvasSnapshot();
+	const normalizedCourseId = Number(courseId);
+	const normalizedTopicId = Number(topicId);
+	useEffect(() => {
+		if (
+			Number.isFinite(normalizedCourseId) &&
+			Number.isFinite(normalizedTopicId)
+		) {
+			void Promise.all([
+				runtime.syncDiscussions(normalizedCourseId),
+				runtime.syncDiscussion(normalizedCourseId, normalizedTopicId),
+			]);
+		}
+	}, [normalizedCourseId, normalizedTopicId, runtime]);
+	return {
+		topic: snapshot.discussions.find(
+			(discussion) =>
+				discussion.course_id === normalizedCourseId &&
+				discussion.id === normalizedTopicId,
+		),
+		entries: snapshot.discussionEntries.filter(
+			(entry) =>
+				entry.course_id === normalizedCourseId &&
+				entry.topic_id === normalizedTopicId,
+		),
+	};
+}
+
+export function useFiles(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const files = useCanvasSnapshot().files;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId))
+			void runtime.syncFiles(normalizedCourseId);
+	}, [normalizedCourseId, runtime]);
+	return files.filter((file) => file.course_id === normalizedCourseId);
+}
+
+export function useCourseTabs(courseId: number | string) {
+	const runtime = useCanvasRuntime();
+	const tabs = useCanvasSnapshot().courseTabs;
+	const normalizedCourseId = Number(courseId);
+	useEffect(() => {
+		if (Number.isFinite(normalizedCourseId)) {
+			void runtime.syncCourseTabs(normalizedCourseId);
+		}
+	}, [normalizedCourseId, runtime]);
+	return tabs
+		.filter((tab) => tab.course_id === normalizedCourseId && !tab.hidden)
+		.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+export function useSubmission(
+	courseId: number | string,
+	assignmentId: number | string,
+) {
+	const runtime = useCanvasRuntime();
+	const submissions = useCanvasSnapshot().submissions;
+	const normalizedCourseId = Number(courseId);
+	const normalizedAssignmentId = Number(assignmentId);
+	useEffect(() => {
+		if (
+			Number.isFinite(normalizedCourseId) &&
+			Number.isFinite(normalizedAssignmentId)
+		) {
+			void runtime.syncSubmission(normalizedCourseId, normalizedAssignmentId);
+		}
+	}, [normalizedCourseId, normalizedAssignmentId, runtime]);
+	return submissions.find(
+		(submission) =>
+			submission.course_id === normalizedCourseId &&
+			submission.assignment_id === normalizedAssignmentId,
+	);
+}
+
+export function usePlannerItems() {
+	const runtime = useCanvasRuntime();
+	const plannerItems = useCanvasSnapshot().plannerItems;
+	useEffect(() => {
+		void runtime.syncPlanner();
+	}, [runtime]);
+	return plannerItems;
+}
+
+export function useCalendarItems() {
+	const runtime = useCanvasRuntime();
+	const calendarItems = useCanvasSnapshot().calendarItems;
+	useEffect(() => {
+		void runtime.syncCalendar();
+	}, [runtime]);
+	return calendarItems;
+}
+
+export function useConversations() {
+	const runtime = useCanvasRuntime();
+	const conversations = useCanvasSnapshot().conversations;
+	useEffect(() => {
+		void runtime.syncConversations();
+	}, [runtime]);
+	return conversations;
+}
+
+export function useConversation(conversationId: string) {
+	const runtime = useCanvasRuntime();
+	const conversations = useCanvasSnapshot().conversations;
+	useEffect(() => {
+		if (conversationId) void runtime.syncConversation(conversationId);
+	}, [conversationId, runtime]);
+	return conversations.find(
+		(conversation) => conversation.id === conversationId,
+	);
+}
+
+export function useNotificationPreferences() {
+	const runtime = useCanvasRuntime();
+	const snapshot = useCanvasSnapshot();
+	useEffect(() => {
+		void runtime.syncNotificationPreferences();
+	}, [runtime]);
+	return {
+		channels: snapshot.communicationChannels,
+		preferences: snapshot.notificationPreferences,
+	};
 }
 
 export function useMutationQueue() {
