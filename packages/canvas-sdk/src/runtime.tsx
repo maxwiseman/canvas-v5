@@ -295,13 +295,26 @@ export class CanvasRuntime {
 		this.setScope("accounts", { status: "syncing", pendingJobs: 1 });
 		try {
 			const accounts = await this.options.overlayTransport.listConnections();
+			const currentActiveAccount = this.snapshot.activeAccount;
 			const activeConnectionId =
-				this.snapshot.activeAccount?.connectionId ??
+				currentActiveAccount?.connectionId ??
 				accounts.find((account) => account.isActive)?.connectionId;
-			const accountsWithActive = accounts.map((account) => ({
-				...account,
-				isActive: account.connectionId === activeConnectionId,
-			}));
+			const accountsWithActive = accounts.map((account) => {
+				const probedAccount =
+					currentActiveAccount?.connectionId === account.connectionId
+						? currentActiveAccount
+						: undefined;
+				return {
+					...account,
+					...(probedAccount?.canvasUserName
+						? { canvasUserName: probedAccount.canvasUserName }
+						: {}),
+					...(probedAccount?.canvasAvatarUrl
+						? { canvasAvatarUrl: probedAccount.canvasAvatarUrl }
+						: {}),
+					isActive: account.connectionId === activeConnectionId,
+				};
+			});
 			const activeAccount =
 				accountsWithActive.find((account) => account.isActive) ??
 				this.snapshot.activeAccount;

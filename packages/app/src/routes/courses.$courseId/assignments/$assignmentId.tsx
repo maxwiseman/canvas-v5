@@ -214,9 +214,9 @@ function AssignmentRoute() {
 					<div className="mt-8 flex flex-col gap-3">
 						<h2 className="font-medium text-sm">Comments</h2>
 						{assignmentComments.map((comment) => (
-							<Card key={comment.id} size="sm">
-								<CardHeader className="flex flex-row items-center gap-3">
-									<Avatar>
+							<div className="flex flex-col gap-2" key={comment.id}>
+								<div className="flex flex-row items-center gap-2">
+									<Avatar className="size-5">
 										{comment.author.avatarUrl ? (
 											<AvatarImage alt="" src={comment.author.avatarUrl} />
 										) : null}
@@ -225,16 +225,18 @@ function AssignmentRoute() {
 										</AvatarFallback>
 									</Avatar>
 									<div className="min-w-0">
-										<CardTitle>{comment.author.displayName}</CardTitle>
-										<CardDescription>
-											{formatDateTime(comment.createdAt)}
-										</CardDescription>
+										<div className="flex items-baseline gap-1 text-sm">
+											{comment.author.displayName}
+											<span className="text-muted-foreground">
+												{formatDateTime(comment.createdAt, "short")}
+											</span>
+										</div>
 									</div>
-								</CardHeader>
-								<CardContent className="whitespace-pre-wrap">
+								</div>
+								<div className="prose dark:prose-invert whitespace-pre-wrap">
 									{comment.content}
-								</CardContent>
-							</Card>
+								</div>
+							</div>
 						))}
 						<CommentField
 							disabled={
@@ -606,14 +608,14 @@ function formatDueDate(value?: string | null) {
 	return `Due ${formatDateTime(value)}`;
 }
 
-function formatDateTime(value?: string) {
+function formatDateTime(value?: string, type?: "short") {
 	if (!value) return "Date unavailable";
 	const date = new Date(value);
 	return Number.isNaN(date.getTime())
 		? value
 		: new Intl.DateTimeFormat(undefined, {
-				dateStyle: "medium",
-				timeStyle: "short",
+				dateStyle: type === "short" ? "short" : "medium",
+				timeStyle: type === "short" ? undefined : "short",
 			}).format(date);
 }
 

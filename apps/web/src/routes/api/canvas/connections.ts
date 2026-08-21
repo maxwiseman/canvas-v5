@@ -199,7 +199,7 @@ async function resolveCanvasUser(input: z.infer<typeof connectionInput>) {
 		return input.canvasUserId
 			? {
 					id: input.canvasUserId.trim(),
-					name: input.canvasUserName?.trim() || input.label.trim(),
+					name: input.canvasUserName?.trim() || undefined,
 					avatarUrl: input.canvasAvatarUrl?.trim() || undefined,
 				}
 			: undefined;
