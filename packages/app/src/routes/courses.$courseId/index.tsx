@@ -6,6 +6,7 @@ import {
 } from "@canvas-v5/canvas-sdk";
 import { createFileRoute } from "@tanstack/react-router";
 import { CanvasHTML } from "../../components/canvas-html";
+import { SyllabusView } from "../../components/syllabus-view";
 import { AssignmentsView } from "./assignments/index";
 import { ModulesView } from "./modules";
 
@@ -29,15 +30,7 @@ function CourseRoute() {
 		return <AssignmentsView courseId={courseId} />;
 	}
 	if (defaultView === "syllabus") {
-		return (
-			<HomeDocument>
-				{course.syllabus_body ? (
-					<CanvasHTML>{course.syllabus_body}</CanvasHTML>
-				) : (
-					<HomeStatus>No syllabus has been added for this course.</HomeStatus>
-				)}
-			</HomeDocument>
-		);
+		return <SyllabusView courseId={courseId} />;
 	}
 	if (defaultView === "wiki") {
 		const frontPage = courseHome?.front_page;

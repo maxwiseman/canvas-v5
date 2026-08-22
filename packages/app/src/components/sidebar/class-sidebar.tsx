@@ -66,6 +66,7 @@ const internalTabs: Record<
 	files: { href: (id) => `/courses/${id}/files`, icon: Files },
 	people: { href: (id) => `/courses/${id}/people`, icon: Users },
 	grades: { href: (id) => `/courses/${id}/grades`, icon: GraduationCap },
+	syllabus: { href: (id) => `/courses/${id}/syllabus`, icon: FileText },
 };
 
 const fallbackTabs: Array<{ id: string; label: string; htmlUrl?: string }> = [
@@ -79,6 +80,7 @@ const fallbackTabs: Array<{ id: string; label: string; htmlUrl?: string }> = [
 	{ id: "files", label: "Files" },
 	{ id: "people", label: "People" },
 	{ id: "grades", label: "Grades" },
+	{ id: "syllabus", label: "Syllabus" },
 ];
 
 interface SidebarTab {
