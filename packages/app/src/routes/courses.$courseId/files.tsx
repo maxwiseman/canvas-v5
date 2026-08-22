@@ -10,7 +10,13 @@ import {
 	ItemTitle,
 } from "@canvas-v5/ui/components/item";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, File } from "lucide-react";
+import { Eye, File } from "lucide-react";
+import { useState } from "react";
+import {
+	CanvasFilePreview,
+	formatCanvasFileMeta,
+	shortCanvasFileType,
+} from "../../components/canvas-file-preview";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -28,9 +34,12 @@ function FilesRoute() {
 	const { courseId } = Route.useParams();
 	const files = useFiles(courseId);
 	const sync = useSyncStatus().find((state) => state.scope === "files");
+	const [selectedFileId, setSelectedFileId] = useState<number>();
+	const selectedFile =
+		files.find((file) => file.id === selectedFileId) ?? files[0];
 
 	return (
-		<PageWrapper className="mx-auto w-full max-w-4xl">
+		<PageWrapper className="mx-auto w-full max-w-7xl">
 			<PageHeader>
 				<PageHeaderContent>
 					<PageHeaderTitle>Files</PageHeaderTitle>
@@ -40,50 +49,47 @@ function FilesRoute() {
 				</PageHeaderContent>
 			</PageHeader>
 			{files.length > 0 ? (
-				<ItemGroup>
-					{files.map((file) => (
-						<Item
-							key={file.id}
-							render={
-								file.url && !file.locked_for_user ? (
-									<a
-										aria-label={`Download ${file.display_name}`}
-										href={file.url}
-										rel="noreferrer noopener"
-										target="_blank"
-									>
-										<span className="sr-only">
-											Download {file.display_name}
-										</span>
-									</a>
-								) : undefined
-							}
-							variant="outline"
-						>
-							<ItemMedia variant="icon">
-								<File />
-							</ItemMedia>
-							<ItemContent>
-								<ItemTitle>{file.display_name}</ItemTitle>
-								<ItemDescription>
-									{file.locked_for_user
-										? (file.lock_explanation ?? "Locked")
-										: formatFileMeta(file.size, file.content_type)}
-								</ItemDescription>
-							</ItemContent>
-							<ItemActions>
-								{file.content_type ? (
-									<Badge variant="outline">
-										{shortType(file.content_type)}
-									</Badge>
-								) : null}
-								{file.url && !file.locked_for_user ? (
-									<Download className="size-4 text-muted-foreground" />
-								) : null}
-							</ItemActions>
-						</Item>
-					))}
-				</ItemGroup>
+				<div className="grid gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
+					<ItemGroup className="content-start gap-2.5">
+						{files.map((file) => (
+							<Item
+								aria-pressed={selectedFile?.id === file.id}
+								className="cursor-pointer text-left aria-pressed:border-primary/40 aria-pressed:bg-muted"
+								key={file.id}
+								onClick={() => setSelectedFileId(file.id)}
+								render={<button type="button" />}
+								size="sm"
+								variant="outline"
+							>
+								<ItemMedia variant="icon">
+									<File />
+								</ItemMedia>
+								<ItemContent className="min-w-0">
+									<ItemTitle>{file.display_name}</ItemTitle>
+									<ItemDescription>
+										{file.locked_for_user
+											? (file.lock_explanation ?? "Locked")
+											: formatCanvasFileMeta(file.size, file.content_type)}
+									</ItemDescription>
+								</ItemContent>
+								<ItemActions>
+									{file.content_type ? (
+										<Badge variant="outline">
+											{shortCanvasFileType(file.content_type)}
+										</Badge>
+									) : null}
+									{selectedFile?.id === file.id ? (
+										<Eye className="size-4 text-muted-foreground" />
+									) : null}
+								</ItemActions>
+							</Item>
+						))}
+					</ItemGroup>
+					<CanvasFilePreview
+						className="h-[min(48rem,calc(100dvh-12rem))] min-h-[32rem] lg:sticky lg:top-8"
+						file={selectedFile}
+					/>
+				</div>
 			) : (
 				<ResourceEmpty
 					description="There are no available files in this course."
@@ -94,22 +100,4 @@ function FilesRoute() {
 			)}
 		</PageWrapper>
 	);
-}
-
-function formatFileMeta(size?: number, type?: string) {
-	const parts = [];
-	if (type) parts.push(type);
-	if (size !== undefined)
-		parts.push(
-			new Intl.NumberFormat(undefined, {
-				style: "unit",
-				unit: "byte",
-				notation: "compact",
-			}).format(size),
-		);
-	return parts.join(" · ") || "Course file";
-}
-
-function shortType(type: string) {
-	return type.split("/").at(-1)?.toUpperCase() ?? type;
 }

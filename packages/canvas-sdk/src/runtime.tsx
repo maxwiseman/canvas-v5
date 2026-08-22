@@ -744,6 +744,42 @@ export class CanvasRuntime {
 		}
 	}
 
+	async syncFile(courseId: number, fileId: number) {
+		this.setScope("files", { status: "syncing", pendingJobs: 1 });
+		try {
+			const [record, publicUrlResponse] = await Promise.all([
+				this.options.canvasTransport.request<CanvasFile>(
+					`/api/v1/files/${fileId}`,
+				),
+				this.options.canvasTransport
+					.request<{ public_url?: string }>(
+						`/api/v1/files/${fileId}/public_url`,
+					)
+					.catch(() => undefined),
+			]);
+			const file = {
+				...record,
+				id: fileId,
+				course_id: courseId,
+				preview_url: publicUrlResponse?.public_url ?? record.preview_url,
+			};
+			const files = [
+				...this.snapshot.files.filter(
+					(candidate) =>
+						!(candidate.course_id === courseId && candidate.id === fileId),
+				),
+				file,
+			];
+			this.setSnapshot({ ...this.snapshot, files });
+			await this.store.put("files", file);
+			this.finishScope("files");
+			return file;
+		} catch (error) {
+			this.failScope("files", error, "Unable to load this file.");
+			return undefined;
+		}
+	}
+
 	async syncCourseTabs(courseId: number) {
 		this.setScope("course-tabs", { status: "syncing", pendingJobs: 1 });
 		try {

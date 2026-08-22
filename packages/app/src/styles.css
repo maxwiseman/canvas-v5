@@ -1,2 +1,77 @@
 @import "@canvas-v5/ui/globals.css";
 @source "./**/*.{ts,tsx}";
+
+.canvas-html-adaptive-foreground {
+	--canvas-html-foreground: var(--canvas-html-foreground-light);
+}
+
+.canvas-html-adaptive-background {
+	--canvas-html-background: var(--canvas-html-background-light);
+}
+
+.canvas-html-adaptive-border {
+	--canvas-html-border: var(--canvas-html-border-light);
+}
+
+.canvas-html-adaptive-border-top {
+	--canvas-html-border-top: var(--canvas-html-border-top-light);
+}
+
+.canvas-html-adaptive-border-right {
+	--canvas-html-border-right: var(--canvas-html-border-right-light);
+}
+
+.canvas-html-adaptive-border-bottom {
+	--canvas-html-border-bottom: var(--canvas-html-border-bottom-light);
+}
+
+.canvas-html-adaptive-border-left {
+	--canvas-html-border-left: var(--canvas-html-border-left-light);
+}
+
+.dark .canvas-html-adaptive-foreground {
+	--canvas-html-foreground: oklch(
+		from var(--canvas-html-foreground-light) max(l, 0.88) calc(c * 0.85) h /
+		alpha
+	);
+}
+
+.dark .canvas-html-adaptive-background {
+	--canvas-html-background: oklch(
+		from var(--canvas-html-background-light) clamp(0.19, calc(l * 0.3), 0.34)
+			calc(c * 0.7) h /
+		alpha
+	);
+}
+
+.dark .canvas-html-adaptive-border,
+.dark .canvas-html-adaptive-border-top,
+.dark .canvas-html-adaptive-border-right,
+.dark .canvas-html-adaptive-border-bottom,
+.dark .canvas-html-adaptive-border-left {
+	--canvas-html-border: oklch(
+		from var(--canvas-html-border-light) clamp(0.28, calc(l * 0.5), 0.5)
+			calc(c * 0.65) h /
+		alpha
+	);
+	--canvas-html-border-top: oklch(
+		from var(--canvas-html-border-top-light) clamp(0.28, calc(l * 0.5), 0.5)
+			calc(c * 0.65) h /
+		alpha
+	);
+	--canvas-html-border-right: oklch(
+		from var(--canvas-html-border-right-light) clamp(0.28, calc(l * 0.5), 0.5)
+			calc(c * 0.65) h /
+		alpha
+	);
+	--canvas-html-border-bottom: oklch(
+		from var(--canvas-html-border-bottom-light) clamp(0.28, calc(l * 0.5), 0.5)
+			calc(c * 0.65) h /
+		alpha
+	);
+	--canvas-html-border-left: oklch(
+		from var(--canvas-html-border-left-light) clamp(0.28, calc(l * 0.5), 0.5)
+			calc(c * 0.65) h /
+		alpha
+	);
+}

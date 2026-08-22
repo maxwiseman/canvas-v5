@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as PlannerRouteImport } from "./routes/planner";
 import { Route as InboxRouteImport } from "./routes/inbox";
+import { Route as DevCanvasHtmlColorsRouteImport } from "./routes/dev-canvas-html-colors";
 import { Route as DevRouteImport } from "./routes/dev";
 import { Route as CalendarRouteImport } from "./routes/calendar";
 import { Route as AccountRouteImport } from "./routes/account";
@@ -43,6 +44,11 @@ const PlannerRoute = PlannerRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: "/inbox",
   path: "/inbox",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DevCanvasHtmlColorsRoute = DevCanvasHtmlColorsRouteImport.update({
+  id: "/dev-canvas-html-colors",
+  path: "/dev-canvas-html-colors",
   getParentRoute: () => rootRouteImport,
 } as any);
 const DevRoute = DevRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   "/account": typeof AccountRoute;
   "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/dev-canvas-html-colors": typeof DevCanvasHtmlColorsRoute;
   "/inbox": typeof InboxRouteWithChildren;
   "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   "/account": typeof AccountRoute;
   "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/dev-canvas-html-colors": typeof DevCanvasHtmlColorsRoute;
   "/inbox": typeof InboxRouteWithChildren;
   "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
@@ -230,6 +238,7 @@ export interface FileRoutesById {
   "/account": typeof AccountRoute;
   "/calendar": typeof CalendarRoute;
   "/dev": typeof DevRouteWithChildren;
+  "/dev-canvas-html-colors": typeof DevCanvasHtmlColorsRoute;
   "/inbox": typeof InboxRouteWithChildren;
   "/planner": typeof PlannerRoute;
   "/dev/mutations": typeof DevMutationsRoute;
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/calendar"
     | "/dev"
+    | "/dev-canvas-html-colors"
     | "/inbox"
     | "/planner"
     | "/dev/mutations"
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/calendar"
     | "/dev"
+    | "/dev-canvas-html-colors"
     | "/inbox"
     | "/planner"
     | "/dev/mutations"
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/calendar"
     | "/dev"
+    | "/dev-canvas-html-colors"
     | "/inbox"
     | "/planner"
     | "/dev/mutations"
@@ -341,6 +353,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute;
   CalendarRoute: typeof CalendarRoute;
   DevRoute: typeof DevRouteWithChildren;
+  DevCanvasHtmlColorsRoute: typeof DevCanvasHtmlColorsRoute;
   InboxRoute: typeof InboxRouteWithChildren;
   PlannerRoute: typeof PlannerRoute;
   CoursesCourseIdAnnouncementsRoute: typeof CoursesCourseIdAnnouncementsRoute;
@@ -373,6 +386,13 @@ declare module "@tanstack/react-router" {
       path: "/inbox";
       fullPath: "/inbox";
       preLoaderRoute: typeof InboxRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dev-canvas-html-colors": {
+      id: "/dev-canvas-html-colors";
+      path: "/dev-canvas-html-colors";
+      fullPath: "/dev-canvas-html-colors";
+      preLoaderRoute: typeof DevCanvasHtmlColorsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/dev": {
@@ -583,6 +603,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   CalendarRoute: CalendarRoute,
   DevRoute: DevRouteWithChildren,
+  DevCanvasHtmlColorsRoute: DevCanvasHtmlColorsRoute,
   InboxRoute: InboxRouteWithChildren,
   PlannerRoute: PlannerRoute,
   CoursesCourseIdAnnouncementsRoute: CoursesCourseIdAnnouncementsRoute,
