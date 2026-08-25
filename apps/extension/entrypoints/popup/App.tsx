@@ -39,6 +39,7 @@ function App() {
 	const [newUiEnabled, setNewUiEnabledState] = useState(true);
 	const [savingPreference, setSavingPreference] = useState(false);
 	const [auth, setAuth] = useState<AuthState>({ status: "checking" });
+	const extensionVersion = browser.runtime.getManifest().version;
 
 	useEffect(() => {
 		void getNewUiEnabled().then(setNewUiEnabledState);
@@ -132,9 +133,10 @@ function App() {
 				</button>
 			</section>
 
-			<p className="popup-footer">
-				Changing the UI setting reloads the current tab.
-			</p>
+			<footer className="popup-footer">
+				<p>Changing the UI setting reloads the current tab.</p>
+				<p className="popup-version">v{extensionVersion}</p>
+			</footer>
 		</main>
 	);
 }

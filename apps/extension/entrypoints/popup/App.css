@@ -31,7 +31,7 @@
 .auth-card p,
 .sign-in-card p,
 .setting-row p,
-.popup-footer {
+.popup-footer p {
 	margin: 0;
 }
 
@@ -172,5 +172,14 @@
 }
 
 .popup-footer {
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-inline: 2px;
+}
+
+.popup-version {
+	flex: none;
+	font-variant-numeric: tabular-nums;
 }
