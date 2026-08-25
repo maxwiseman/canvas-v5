@@ -450,6 +450,9 @@ export interface CanvasFile extends Record<string, unknown> {
 	url?: string;
 	public_url?: string;
 	preview_url?: string;
+	canvadoc_url?: string;
+	provisional_canvadoc_url?: string | null;
+	enhanced_preview_url?: string;
 	thumbnail_url?: string;
 	created_at?: string;
 	updated_at?: string;

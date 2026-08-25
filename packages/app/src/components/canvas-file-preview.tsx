@@ -39,7 +39,10 @@ export function CanvasFilePreview({
 			? snapshot.canvasAuth.baseUrl
 			: undefined);
 	const canvasDocumentPreviewUrl = file
-		? getCanvasDocumentPreviewUrl(file, canvasBaseUrl)
+		? getCanvasDocumentPreviewUrl(file)
+		: undefined;
+	const canvasDocumentBootstrapUrl = file
+		? getCanvasDocumentBootstrapUrl(file, canvasBaseUrl)
 		: undefined;
 
 	return (
@@ -82,6 +85,7 @@ export function CanvasFilePreview({
 
 			<div className="absolute inset-x-0 top-16 bottom-0 flex min-h-0 items-center justify-center bg-muted/20">
 				<FilePreviewContent
+					canvasDocumentBootstrapUrl={canvasDocumentBootstrapUrl}
 					canvasDocumentPreviewUrl={canvasDocumentPreviewUrl}
 					error={error}
 					file={file}
@@ -109,6 +113,7 @@ export function CanvasFilePreviewDialog({
 	const snapshot = useCanvasSnapshot();
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
+	const [detailsLoaded, setDetailsLoaded] = useState(false);
 	const normalizedCourseId = Number(courseId);
 	const normalizedFileId = Number(fileId);
 	const file = snapshot.files.find(
@@ -120,12 +125,22 @@ export function CanvasFilePreviewDialog({
 
 	function handleOpenChange(nextOpen: boolean) {
 		setOpen(nextOpen);
-		if (!nextOpen || file || !Number.isFinite(normalizedCourseId)) return;
+		if (
+			!nextOpen ||
+			detailsLoaded ||
+			!Number.isFinite(normalizedCourseId) ||
+			!Number.isFinite(normalizedFileId)
+		) {
+			return;
+		}
 
 		setLoading(true);
 		void runtime
 			.syncFile(normalizedCourseId, normalizedFileId)
-			.finally(() => setLoading(false));
+			.finally(() => {
+				setDetailsLoaded(true);
+				setLoading(false);
+			});
 	}
 
 	return (
@@ -168,11 +183,13 @@ export function CanvasFilePreviewDialog({
 }
 
 function FilePreviewContent({
+	canvasDocumentBootstrapUrl,
 	canvasDocumentPreviewUrl,
 	file,
 	loading,
 	error,
 }: {
+	canvasDocumentBootstrapUrl?: string;
 	canvasDocumentPreviewUrl?: string;
 	file?: CanvasFile;
 	loading: boolean;
@@ -249,14 +266,27 @@ function FilePreviewContent({
 		return <audio className="w-full max-w-xl" controls src={originalUrl} />;
 	}
 
-	if (isOfficeDocument && canvasDocumentPreviewUrl) {
+	if (
+		isOfficeDocument &&
+		(canvasDocumentPreviewUrl || canvasDocumentBootstrapUrl)
+	) {
 		return (
-			<iframe
-				allowFullScreen
-				className="size-full border-0 bg-background"
-				src={canvasDocumentPreviewUrl}
-				title={`${file.display_name} preview`}
+			<CanvasCanvadocPreview
+				bootstrapUrl={canvasDocumentBootstrapUrl}
+				file={file}
+				previewUrl={canvasDocumentPreviewUrl}
 			/>
+		);
+	}
+
+	if (isOfficeDocument) {
+		return (
+			<PreviewMessage
+				action={<FileDownloadButton file={file} />}
+				title="Preview unavailable"
+			>
+				Canvas doesn’t have a document preview available for this file.
+			</PreviewMessage>
 		);
 	}
 
@@ -278,6 +308,81 @@ function FilePreviewContent({
 			src={previewUrl}
 			title={`${file.display_name} preview`}
 		/>
+	);
+}
+
+function CanvasCanvadocPreview({
+	file,
+	previewUrl,
+	bootstrapUrl,
+}: {
+	file: CanvasFile;
+	previewUrl?: string;
+	bootstrapUrl?: string;
+}) {
+	const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState(previewUrl);
+	const [bootstrapFailed, setBootstrapFailed] = useState(false);
+
+	useEffect(() => {
+		setResolvedPreviewUrl(previewUrl);
+		setBootstrapFailed(false);
+		if (previewUrl || !bootstrapUrl) return;
+
+		let cancelled = false;
+		void fetch(bootstrapUrl, { credentials: "include" })
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error(`Canvas returned ${response.status}.`);
+				}
+				return response.text();
+			})
+			.then((html) => {
+				if (cancelled) return;
+				const document = new DOMParser().parseFromString(html, "text/html");
+				const sessionUrl = document
+					.querySelector("#doc_preview[data-canvadoc_session_url]")
+					?.getAttribute("data-canvadoc_session_url");
+				if (!sessionUrl) {
+					throw new Error("Canvas did not provide a Canvadoc session.");
+				}
+				setResolvedPreviewUrl(new URL(sessionUrl, bootstrapUrl).toString());
+			})
+			.catch(() => {
+				if (!cancelled) setBootstrapFailed(true);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [bootstrapUrl, previewUrl]);
+
+	if (resolvedPreviewUrl) {
+		return (
+			<iframe
+				allowFullScreen
+				className="size-full border-0 bg-background"
+				src={resolvedPreviewUrl}
+				title={`${file.display_name} preview`}
+			/>
+		);
+	}
+
+	if (bootstrapFailed || !bootstrapUrl) {
+		return (
+			<PreviewMessage
+				action={<FileDownloadButton file={file} />}
+				title="Preview unavailable"
+			>
+				Canvas doesn’t have a document preview available for this file.
+			</PreviewMessage>
+		);
+	}
+
+	return (
+		<div className="flex items-center gap-2 text-muted-foreground text-sm">
+			<LoaderCircle className="size-4 animate-spin" />
+			Loading document preview…
+		</div>
 	);
 }
 
@@ -413,6 +518,18 @@ export function isCanvasOfficeDocument(file: CanvasFile) {
 
 export function getCanvasDocumentPreviewUrl(
 	file: CanvasFile,
+) {
+	if (!isCanvasOfficeDocument(file)) return undefined;
+
+	return (
+		file.canvadoc_url ??
+		file.provisional_canvadoc_url ??
+		file.enhanced_preview_url
+	);
+}
+
+export function getCanvasDocumentBootstrapUrl(
+	file: CanvasFile,
 	canvasBaseUrl?: string,
 	currentOrigin = typeof window === "undefined"
 		? undefined
@@ -423,14 +540,14 @@ export function getCanvasDocumentPreviewUrl(
 	}
 
 	try {
-		const previewUrl = new URL(
-			`/courses/${file.course_id}/files/${file.id}/preview`,
+		const fileUrl = new URL(
+			`/courses/${file.course_id}/files/${file.id}`,
 			canvasBaseUrl,
 		);
-		if (previewUrl.origin !== currentOrigin) return undefined;
+		if (fileUrl.origin !== currentOrigin) return undefined;
 
-		previewUrl.searchParams.set("canvas_v5_native", "1");
-		return previewUrl.toString();
+		fileUrl.searchParams.set("canvas_v5_native", "1");
+		return fileUrl.toString();
 	} catch {
 		return undefined;
 	}
