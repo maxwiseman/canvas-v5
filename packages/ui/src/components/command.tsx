@@ -52,7 +52,7 @@ function CommandDialog({
 			</DialogHeader>
 			<DialogContent
 				className={cn(
-					"top-1/3 translate-y-0 overflow-hidden rounded-4xl! p-0 sm:max-w-xl",
+					"top-[max(1rem,calc(50%_-_13.75rem))] translate-y-0 overflow-hidden rounded-4xl! p-0 sm:max-w-xl",
 					className,
 				)}
 				showCloseButton={showCloseButton}
@@ -142,7 +142,7 @@ function CommandItem({
 		<CommandPrimitive.Item
 			data-slot="command-item"
 			className={cn(
-				"relative flex cursor-default select-none items-center gap-2 rounded-2xl px-3 py-2 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-selected:bg-muted data-selected:text-foreground data-[disabled=true]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"group/command-item relative flex cursor-default select-none items-center gap-2 rounded-2xl px-3 py-2 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-selected:bg-muted data-selected:text-foreground data-[disabled=true]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className,
 			)}
 			{...props}
@@ -157,7 +157,10 @@ function CommandShortcut({
 	return (
 		<span
 			data-slot="command-shortcut"
-			className={cn("ml-auto text-muted-foreground text-xs", className)}
+			className={cn(
+				"ml-auto text-muted-foreground text-xs opacity-0 group-data-[selected=true]/command-item:opacity-100",
+				className,
+			)}
 			{...props}
 		/>
 	);

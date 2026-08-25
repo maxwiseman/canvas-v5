@@ -21,7 +21,13 @@ import {
 	ScrollText,
 	Search,
 } from "lucide-react";
-import { type ComponentType, useEffect, useMemo, useState } from "react";
+import {
+	type ComponentType,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 type SearchItem = {
 	id: string;
@@ -48,12 +54,20 @@ export function GlobalSearch() {
 	const snapshot = useCanvasSnapshot();
 	const runtime = useCanvasRuntime();
 	const navigate = useNavigate();
+	const setSearchOpen = useCallback((nextOpen: boolean) => {
+		if (nextOpen) setQuery("");
+		setOpen(nextOpen);
+	}, []);
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
-				setOpen((current) => !current);
+				setOpen((current) => {
+					const nextOpen = !current;
+					if (nextOpen) setQuery("");
+					return nextOpen;
+				});
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
@@ -87,7 +101,7 @@ export function GlobalSearch() {
 			<Button
 				aria-label="Search Canvas"
 				className="w-full justify-start rounded-2xl px-3 text-muted-foreground"
-				onClick={() => setOpen(true)}
+				onClick={() => setSearchOpen(true)}
 				variant="outline"
 			>
 				<Search data-icon="inline-start" />
@@ -96,7 +110,7 @@ export function GlobalSearch() {
 					⌘K
 				</kbd>
 			</Button>
-			<CommandDialog open={open} onOpenChange={setOpen}>
+			<CommandDialog open={open} onOpenChange={setSearchOpen}>
 				<Command shouldFilter={false}>
 					<CommandInput
 						autoFocus
@@ -125,7 +139,7 @@ export function GlobalSearch() {
 													</span>
 												) : null}
 											</span>
-											<CommandShortcut>↵</CommandShortcut>
+											<CommandShortcut aria-hidden="true">↵</CommandShortcut>
 										</CommandItem>
 									);
 								})}
