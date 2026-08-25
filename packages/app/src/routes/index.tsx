@@ -19,10 +19,11 @@ import {
 	ItemTitle,
 } from "@canvas-v5/ui/components/item";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, CalendarDays, GraduationCap } from "lucide-react";
+import { ArrowRight, CalendarDays } from "lucide-react";
 import { isIconId, PickedIcon } from "../components/icon-picker";
 import { PageWrapper } from "../components/page-header";
 import { ResourceEmpty } from "../components/resource-empty";
+import { resolveCourseIconId } from "../lib/course-icon";
 
 export const Route = createFileRoute("/")({ component: DashboardRoute });
 
@@ -53,43 +54,45 @@ function DashboardRoute() {
 					</div>
 					{courses.length > 0 ? (
 						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-							{courses.map((course) => (
-								<Card key={course.id} size="sm">
-									<CardHeader>
-										<div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-											{isIconId(course.app?.icon) ? (
-												<PickedIcon className="size-5" icon={course.app.icon} />
-											) : (
-												<GraduationCap className="size-5" />
-											)}
-										</div>
-										<CardTitle>{course.name}</CardTitle>
-										<CardDescription>
-											{course.course_code ?? "Canvas course"}
-										</CardDescription>
-										<CardAction>
-											<Badge variant="secondary">
-												{course.workflow_state ?? "active"}
-											</Badge>
-										</CardAction>
-									</CardHeader>
-									<CardContent>
-										<Button
-											className="w-full"
-											render={
-												<Link
-											params={{ courseId: String(course.id) } as never}
-											to={"/courses/$courseId" as never}
-												/>
-											}
-											variant="outline"
-										>
-											Open course
-											<ArrowRight data-icon="inline-end" />
-										</Button>
-									</CardContent>
-								</Card>
-							))}
+							{courses.map((course) => {
+								const icon = resolveCourseIconId(
+									isIconId(course.app?.icon) ? course.app.icon : undefined,
+									course.course_code,
+								);
+								return (
+									<Card key={course.id} size="sm">
+										<CardHeader>
+											<div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+												<PickedIcon className="size-5" icon={icon} />
+											</div>
+											<CardTitle>{course.name}</CardTitle>
+											<CardDescription>
+												{course.course_code ?? "Canvas course"}
+											</CardDescription>
+											<CardAction>
+												<Badge variant="secondary">
+													{course.workflow_state ?? "active"}
+												</Badge>
+											</CardAction>
+										</CardHeader>
+										<CardContent>
+											<Button
+												className="w-full"
+												render={
+													<Link
+														params={{ courseId: String(course.id) } as never}
+														to={"/courses/$courseId" as never}
+													/>
+												}
+												variant="outline"
+											>
+												Open course
+												<ArrowRight data-icon="inline-end" />
+											</Button>
+										</CardContent>
+									</Card>
+								);
+							})}
 						</div>
 					) : (
 						<ResourceEmpty

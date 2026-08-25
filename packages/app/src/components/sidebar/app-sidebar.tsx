@@ -14,6 +14,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { CalendarDays, GraduationCap, Home, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type ComponentType, useState } from "react";
+import { resolveCourseIconId } from "../../lib/course-icon";
 import { IconPicker, isIconId } from "../icon-picker";
 import UserMenu from "../user-menu";
 import { ClassSidebar } from "./class-sidebar";
@@ -125,11 +126,12 @@ export function AppSidebar() {
 													<IconPicker
 														triggerClassName="absolute top-1/2! left-2 right-auto size-6 hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground"
 														triggerStyle={{ transform: "translateY(-50%)" }}
-														value={
+														value={resolveCourseIconId(
 															isIconId(course.app?.icon)
 																? course.app.icon
-																: "book"
-														}
+																: undefined,
+															course.course_code,
+														)}
 														onValueChange={(val) =>
 															updateCourseIcon(course.id, val)
 														}

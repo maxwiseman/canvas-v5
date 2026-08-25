@@ -2,29 +2,76 @@ import { Select } from "@base-ui/react/select";
 import type { IconId } from "@canvas-v5/canvas-sdk";
 import { cn } from "@canvas-v5/ui/lib/utils";
 import {
+	Activity,
+	Apple,
 	Atom,
+	BadgeDollarSign,
 	Binary,
 	Bookmark,
 	BookOpen,
+	Bot,
 	Brain,
 	BrainCircuit,
+	BriefcaseBusiness,
 	Brush,
+	Bug,
 	Calculator,
+	Camera,
+	ChartColumn,
+	ChefHat,
+	CircuitBoard,
+	Clapperboard,
 	CodeXml,
+	Cog,
+	Compass,
 	Cone,
+	Cpu,
+	Database,
 	Diff,
 	Divide,
+	Dna,
+	DraftingCompass,
+	Drama,
+	Dumbbell,
 	Earth,
+	Feather,
+	Film,
 	FlaskConical,
 	Gavel,
+	GraduationCap,
+	Hammer,
+	HardHat,
+	HeartHandshake,
+	HeartPulse,
 	Landmark,
+	Languages,
+	Leaf,
+	Library,
 	type LucideIcon,
+	Map as MapIcon,
+	Megaphone,
 	Microscope,
+	Mountain,
+	Music,
 	NotebookPen,
+	Orbit,
 	Palette,
 	Pi,
+	Plane,
 	Radical,
+	RadioTower,
+	Ruler,
+	Scale,
+	School,
+	ScrollText,
+	Sigma,
 	Star,
+	Stethoscope,
+	Telescope,
+	Tractor,
+	Users,
+	Waves,
+	Wrench,
 } from "lucide-react";
 import { type CSSProperties, useMemo, useState } from "react";
 
@@ -61,7 +108,7 @@ export function IconPicker({
 	const [open, setOpen] = useState(false);
 	const items = useMemo(
 		() =>
-			icons.map((iconObj) => ({
+			availableIcons.map((iconObj) => ({
 				label: iconObj.name,
 				value: iconObj.id,
 			})),
@@ -125,37 +172,46 @@ export function IconPicker({
 					<Select.Popup
 						className={cn(
 							// Copied from `packages/ui/src/components/popover.tsx` for a consistent popup surface.
-							"z-50 flex w-72 flex-col gap-4 rounded-3xl bg-popover p-4 text-popover-foreground text-sm shadow-lg outline-hidden ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in dark:ring-foreground/10",
+							"z-50 flex w-80 flex-col gap-4 rounded-3xl bg-popover p-4 text-popover-foreground text-sm shadow-lg outline-hidden ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in dark:ring-foreground/10",
 							// Icon-picker specifics
-							"max-h-72 overflow-auto p-2",
+							"max-h-96 overflow-auto p-2",
 							popupClassName,
 						)}
 					>
-						<Select.List className="grid grid-cols-6 gap-1">
-							{icons.map((iconObj) => {
-								const Icon = iconObj.icon;
-								return (
-									<Select.Item
-										key={iconObj.id}
-										value={iconObj.id}
-										label={iconObj.name}
-										title={iconObj.name}
-										className={cn(
-											"group grid size-9 cursor-pointer place-items-center rounded-xl",
-											"text-muted-foreground transition-colors",
-											"hover:bg-muted/50 hover:text-foreground",
-											"data-highlighted:bg-muted/50 data-highlighted:text-foreground",
-											"data-selected:bg-muted data-selected:text-foreground",
-											"outline-none",
-										)}
-									>
-										<Icon className="size-4" aria-hidden="true" />
-										<Select.ItemText className="sr-only">
-											{iconObj.name}
-										</Select.ItemText>
-									</Select.Item>
-								);
-							})}
+						<Select.List className="flex flex-col gap-3">
+							{iconGroups.map((group) => (
+								<Select.Group key={group.name}>
+									<Select.GroupLabel className="mb-1 px-1 font-medium text-muted-foreground text-xs">
+										{group.name}
+									</Select.GroupLabel>
+									<div className="grid grid-cols-7 gap-1">
+										{group.icons.map((iconObj) => {
+											const Icon = iconObj.icon;
+											return (
+												<Select.Item
+													key={iconObj.id}
+													value={iconObj.id}
+													label={iconObj.name}
+													title={iconObj.name}
+													className={cn(
+														"group grid size-9 cursor-pointer place-items-center rounded-xl",
+														"text-muted-foreground transition-colors",
+														"hover:bg-muted/50 hover:text-foreground",
+														"data-highlighted:bg-muted/50 data-highlighted:text-foreground",
+														"data-selected:bg-muted data-selected:text-foreground",
+														"outline-none",
+													)}
+												>
+													<Icon className="size-4" aria-hidden="true" />
+													<Select.ItemText className="sr-only">
+														{iconObj.name}
+													</Select.ItemText>
+												</Select.Item>
+											);
+										})}
+									</div>
+								</Select.Group>
+							))}
 						</Select.List>
 					</Select.Popup>
 				</Select.Positioner>
@@ -171,39 +227,146 @@ export function PickedIcon({
 	icon: IconId;
 	className?: string;
 }) {
-	const found = icons.find((i) => i.id === icon);
+	const found = availableIcons.find((i) => i.id === icon);
 	if (!found) return null;
 	const Icon = found.icon;
 	return <Icon className={className} aria-hidden="true" />;
 }
 
 export function isIconId(value: string | null | undefined): value is IconId {
-	return icons.some((icon) => icon.id === value);
+	return availableIcons.some((icon) => icon.id === value);
 }
 
-const icons = [
-	{ id: "atom", name: "Atom", icon: Atom },
-	{ id: "flask", name: "Flask", icon: FlaskConical },
-	{ id: "microscope", name: "Microscope", icon: Microscope },
-	{ id: "book", name: "Book", icon: BookOpen },
-	{ id: "bookmark", name: "Bookmark", icon: Bookmark },
-	{ id: "notebook", name: "Notebook", icon: NotebookPen },
-	{ id: "star", name: "Star", icon: Star },
-	{ id: "paintbrush", name: "Paintbrush", icon: Brush },
-	{ id: "palette", name: "Palette", icon: Palette },
-	{ id: "brain", name: "Brain", icon: Brain },
-	{ id: "brain-circuit", name: "Brain Circuit", icon: BrainCircuit },
-	{ id: "calculator", name: "Calculator", icon: Calculator },
-	{ id: "diff", name: "Plus or Minus", icon: Diff },
-	{ id: "divide", name: "Divide", icon: Divide },
-	{ id: "pi", name: "Pi", icon: Pi },
-	{ id: "radical", name: "Radical", icon: Radical },
-	{ id: "cone", name: "Cone", icon: Cone },
-	{ id: "code", name: "Code", icon: CodeXml },
-	{ id: "binary", name: "Binary", icon: Binary },
-	{ id: "government", name: "Government", icon: Landmark },
-	{ id: "gavel", name: "Gavel", icon: Gavel },
-	{ id: "earth", name: "Earth", icon: Earth },
-] satisfies { id: IconId; name: string; icon: LucideIcon }[];
+type CourseIcon = { id: IconId; name: string; icon: LucideIcon };
+type CourseIconGroup = { name: string; icons: CourseIcon[] };
 
-export { icons as availableIcons };
+const iconGroups: CourseIconGroup[] = [
+	{
+		name: "General & School",
+		icons: [
+			{ id: "star", name: "Star", icon: Star },
+			{ id: "book", name: "Book", icon: BookOpen },
+			{ id: "bookmark", name: "Bookmark", icon: Bookmark },
+			{ id: "notebook", name: "Notebook", icon: NotebookPen },
+			{ id: "graduation-cap", name: "Graduation", icon: GraduationCap },
+			{ id: "school", name: "School", icon: School },
+			{ id: "library", name: "Library", icon: Library },
+		],
+	},
+	{
+		name: "Math",
+		icons: [
+			{ id: "calculator", name: "Calculator", icon: Calculator },
+			{ id: "diff", name: "Plus or Minus", icon: Diff },
+			{ id: "divide", name: "Divide", icon: Divide },
+			{ id: "pi", name: "Pi", icon: Pi },
+			{ id: "radical", name: "Radical", icon: Radical },
+			{ id: "sigma", name: "Sigma", icon: Sigma },
+			{ id: "cone", name: "Geometry", icon: Cone },
+			{ id: "ruler", name: "Ruler", icon: Ruler },
+			{
+				id: "drafting-compass",
+				name: "Drafting Compass",
+				icon: DraftingCompass,
+			},
+		],
+	},
+	{
+		name: "Natural Sciences",
+		icons: [
+			{ id: "atom", name: "Physics", icon: Atom },
+			{ id: "flask", name: "Chemistry", icon: FlaskConical },
+			{ id: "microscope", name: "Biology", icon: Microscope },
+			{ id: "dna", name: "Genetics", icon: Dna },
+			{ id: "telescope", name: "Astronomy", icon: Telescope },
+			{ id: "orbit", name: "Space Science", icon: Orbit },
+			{ id: "earth", name: "Earth Science", icon: Earth },
+			{ id: "leaf", name: "Environmental Science", icon: Leaf },
+			{ id: "bug", name: "Ecology", icon: Bug },
+			{ id: "mountain", name: "Geology", icon: Mountain },
+			{ id: "waves", name: "Marine Science", icon: Waves },
+		],
+	},
+	{
+		name: "Computing & Engineering",
+		icons: [
+			{ id: "code", name: "Programming", icon: CodeXml },
+			{ id: "binary", name: "Computer Science", icon: Binary },
+			{
+				id: "brain-circuit",
+				name: "Artificial Intelligence",
+				icon: BrainCircuit,
+			},
+			{ id: "cpu", name: "Computer Engineering", icon: Cpu },
+			{
+				id: "circuit-board",
+				name: "Electrical Engineering",
+				icon: CircuitBoard,
+			},
+			{ id: "database", name: "Data Science", icon: Database },
+			{ id: "bot", name: "Robotics", icon: Bot },
+			{ id: "cog", name: "Mechanical Engineering", icon: Cog },
+			{ id: "wrench", name: "Engineering", icon: Wrench },
+			{ id: "hammer", name: "Construction", icon: Hammer },
+			{ id: "hard-hat", name: "Civil Engineering", icon: HardHat },
+		],
+	},
+	{
+		name: "Humanities & Social Sciences",
+		icons: [
+			{ id: "languages", name: "World Languages", icon: Languages },
+			{ id: "feather", name: "English & Writing", icon: Feather },
+			{ id: "scroll", name: "History", icon: ScrollText },
+			{ id: "government", name: "Government & Politics", icon: Landmark },
+			{ id: "map", name: "Geography", icon: MapIcon },
+			{ id: "compass", name: "Global Studies", icon: Compass },
+			{ id: "brain", name: "Psychology", icon: Brain },
+			{ id: "users", name: "Sociology", icon: Users },
+		],
+	},
+	{
+		name: "Arts & Media",
+		icons: [
+			{ id: "paintbrush", name: "Studio Art", icon: Brush },
+			{ id: "palette", name: "Art & Design", icon: Palette },
+			{ id: "music", name: "Music", icon: Music },
+			{ id: "drama", name: "Theater", icon: Drama },
+			{ id: "camera", name: "Photography", icon: Camera },
+			{ id: "film", name: "Film Studies", icon: Film },
+			{ id: "clapperboard", name: "Film Production", icon: Clapperboard },
+			{ id: "megaphone", name: "Communications", icon: Megaphone },
+		],
+	},
+	{
+		name: "Business & Law",
+		icons: [
+			{ id: "briefcase", name: "Business", icon: BriefcaseBusiness },
+			{ id: "chart-column", name: "Economics", icon: ChartColumn },
+			{ id: "badge-dollar-sign", name: "Finance", icon: BadgeDollarSign },
+			{ id: "heart-handshake", name: "Marketing", icon: HeartHandshake },
+			{ id: "scale", name: "Law", icon: Scale },
+			{ id: "gavel", name: "Criminal Justice", icon: Gavel },
+		],
+	},
+	{
+		name: "Health & Wellness",
+		icons: [
+			{ id: "heart-pulse", name: "Health Sciences", icon: HeartPulse },
+			{ id: "stethoscope", name: "Medicine & Nursing", icon: Stethoscope },
+			{ id: "activity", name: "Anatomy & Physiology", icon: Activity },
+			{ id: "dumbbell", name: "Physical Education", icon: Dumbbell },
+			{ id: "apple", name: "Nutrition", icon: Apple },
+		],
+	},
+	{
+		name: "Trades & Applied Studies",
+		icons: [
+			{ id: "chef-hat", name: "Culinary Arts", icon: ChefHat },
+			{ id: "tractor", name: "Agriculture", icon: Tractor },
+			{ id: "plane", name: "Aviation", icon: Plane },
+			{ id: "radio-tower", name: "Broadcasting", icon: RadioTower },
+		],
+	},
+];
+
+export const availableIcons = iconGroups.flatMap((group) => group.icons);

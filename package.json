@@ -25,6 +25,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:extension": "turbo build -F extension",
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "db:push": "turbo -F @canvas-v5/db db:push",
