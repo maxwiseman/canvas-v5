@@ -28,7 +28,9 @@ export default defineConfig({
 		const configuredAppOrigin =
 			process.env.VITE_CANVAS_V5_APP_ORIGIN ?? "https://canvas.maxw.app";
 		const appHostPermission = `${new URL(configuredAppOrigin).origin}/*`;
+		const releaseVersion = process.env.EXTENSION_VERSION;
 		return {
+			...(releaseVersion ? { version: releaseVersion } : {}),
 			permissions: ["alarms", "notifications", "storage", "tabs"],
 			host_permissions: [
 				"*://*.instructure.com/*",

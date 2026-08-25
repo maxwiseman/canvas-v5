@@ -286,6 +286,27 @@ Avoid running broad format/check commands casually when the user has in-progress
 ## Working Rules For Future Agents
 
 - Read the code before changing architecture.
+- Keep release notes in a fragment-based `changelog/` directory so parallel
+  work does not contend on one file. For each completed, validated,
+  user-visible change, add a uniquely named Markdown file under
+  `changelog/unreleased/` containing one or more `- ` release-note bullets. Add
+  entries only after the behavior is complete; do not claim in-progress work as
+  shipped, and do not modify or remove another task's fragment.
+- When the user explicitly asks to create a release, choose the next semantic
+  version from the included changes (patch for fixes, minor for backward-
+  compatible features, major for breaking changes) unless the user specifies
+  one. Create `changelog/vX.Y.Z.md` with an `## vX.Y.Z` heading and the bullets
+  from the included `changelog/unreleased/` fragments, then remove only those
+  consumed fragments. Confirm the intended changes are committed and do not
+  sweep unrelated or unfinished work into the release.
+- Commit the changelog rollover, create tag `vX.Y.Z` on that exact release
+  commit, and push both the commit and tag. Then publish from the verified
+  remote tag with
+  `gh release create vX.Y.Z --verify-tag --title "Canvas V5 X.Y.Z" --notes-file changelog/vX.Y.Z.md`.
+  Publishing the GitHub Release triggers
+  `.github/workflows/extension-release.yml`, which attaches the browser
+  packages. Do not commit, tag, push, or publish unless the user explicitly
+  asked to create the release.
 - Keep `packages/app` runtime-agnostic.
 - Keep Better Auth client/server details out of shared UI.
 - Prefer SDK hooks over direct transport/auth/database calls from UI.
