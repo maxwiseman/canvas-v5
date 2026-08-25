@@ -11,10 +11,8 @@ import type {
 } from "@canvas-v5/canvas-sdk";
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { APP_BASE_URL, getNewUiEnabled } from "../lib/config";
 
-const APP_BASE_URL =
-	import.meta.env.VITE_CANVAS_V5_APP_ORIGIN?.replace(/\/$/, "") ??
-	"http://localhost:3000";
 const APP_MATCH_PATTERN = `${new URL(APP_BASE_URL).origin}/*`;
 
 export default defineContentScript({
@@ -45,6 +43,31 @@ export default defineContentScript({
 				status: "Canvas auth missing",
 				detail:
 					"Canvas V5 is installed, but this Canvas page is not authenticated.",
+			});
+			return;
+		}
+
+		void browser.runtime.sendMessage({ type: "canvas-v5:sync-now" });
+		if (!(await getNewUiEnabled())) {
+			return;
+		}
+
+		const appSession = (await browser.runtime.sendMessage({
+			type: "canvas-v5:get-app-session",
+		})) as { ok: boolean; reason?: string };
+		if (!appSession.ok) {
+			showCanvasV5Banner({
+				status: "Sign in to Canvas V5",
+				detail:
+					"Your existing Canvas page is still available. Sign in to use the new UI and background sync.",
+				action: {
+					label: "Sign in",
+					onClick: () => {
+						void browser.runtime.sendMessage({
+							type: "canvas-v5:open-app-login",
+						});
+					},
+				},
 			});
 			return;
 		}

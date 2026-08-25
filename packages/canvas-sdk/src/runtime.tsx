@@ -761,7 +761,8 @@ export class CanvasRuntime {
 				...record,
 				id: fileId,
 				course_id: courseId,
-				preview_url: publicUrlResponse?.public_url ?? record.preview_url,
+				public_url: publicUrlResponse?.public_url,
+				preview_url: record.preview_url,
 			};
 			const files = [
 				...this.snapshot.files.filter(

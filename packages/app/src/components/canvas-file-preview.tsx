@@ -13,7 +13,7 @@ import {
 	DialogTrigger,
 } from "@canvas-v5/ui/components/dialog";
 import { cn } from "@canvas-v5/ui/lib/utils";
-import { ExternalLink, File, LoaderCircle, LockKeyhole } from "lucide-react";
+import { Download, File, LoaderCircle, LockKeyhole } from "lucide-react";
 import {
 	type ComponentProps,
 	type ReactNode,
@@ -32,6 +32,16 @@ export function CanvasFilePreview({
 	error?: string;
 	className?: string;
 }) {
+	const snapshot = useCanvasSnapshot();
+	const canvasBaseUrl =
+		snapshot.activeAccount?.canvasBaseUrl ??
+		(snapshot.canvasAuth.status === "authenticated"
+			? snapshot.canvasAuth.baseUrl
+			: undefined);
+	const canvasDocumentPreviewUrl = file
+		? getCanvasDocumentPreviewUrl(file, canvasBaseUrl)
+		: undefined;
+
 	return (
 		<section
 			className={cn(
@@ -55,7 +65,7 @@ export function CanvasFilePreview({
 				</div>
 				{file?.url && !file.locked_for_user ? (
 					<Button
-						aria-label={`Open ${file.display_name} in a new tab`}
+						aria-label={`Download ${file.display_name}`}
 						className="shrink-0"
 						render={
 							// biome-ignore lint/a11y/useAnchorContent: The Button's children provide the accessible link label.
@@ -64,14 +74,19 @@ export function CanvasFilePreview({
 						size="sm"
 						variant="outline"
 					>
-						<ExternalLink data-icon="inline-start" />
-						<span className="hidden sm:inline">Open original</span>
+						<Download data-icon="inline-start" />
+						<span className="hidden sm:inline">Download</span>
 					</Button>
 				) : null}
 			</div>
 
 			<div className="absolute inset-x-0 top-16 bottom-0 flex min-h-0 items-center justify-center bg-muted/20">
-				<FilePreviewContent error={error} file={file} loading={loading} />
+				<FilePreviewContent
+					canvasDocumentPreviewUrl={canvasDocumentPreviewUrl}
+					error={error}
+					file={file}
+					loading={loading}
+				/>
 			</div>
 		</section>
 	);
@@ -153,10 +168,12 @@ export function CanvasFilePreviewDialog({
 }
 
 function FilePreviewContent({
+	canvasDocumentPreviewUrl,
 	file,
 	loading,
 	error,
 }: {
+	canvasDocumentPreviewUrl?: string;
 	file?: CanvasFile;
 	loading: boolean;
 	error?: string;
@@ -197,6 +214,7 @@ function FilePreviewContent({
 		[file.display_name, file.filename].some((name) =>
 			name?.toLowerCase().endsWith(".pdf"),
 		);
+	const isOfficeDocument = isCanvasOfficeDocument(file);
 
 	if (isPdf && originalUrl) {
 		return (
@@ -231,10 +249,24 @@ function FilePreviewContent({
 		return <audio className="w-full max-w-xl" controls src={originalUrl} />;
 	}
 
+	if (isOfficeDocument && canvasDocumentPreviewUrl) {
+		return (
+			<iframe
+				allowFullScreen
+				className="size-full border-0 bg-background"
+				src={canvasDocumentPreviewUrl}
+				title={`${file.display_name} preview`}
+			/>
+		);
+	}
+
 	if (!previewUrl) {
 		return (
-			<PreviewMessage title="Preview unavailable">
-				Canvas did not provide a preview for this file.
+			<PreviewMessage
+				action={<FileDownloadButton file={file} />}
+				title="Preview unavailable"
+			>
+				This file can’t be previewed here.
 			</PreviewMessage>
 		);
 	}
@@ -320,10 +352,12 @@ function PreviewMessage({
 	icon,
 	title,
 	children,
+	action,
 }: {
 	icon?: ReactNode;
 	title: string;
 	children: ReactNode;
+	action?: ReactNode;
 }) {
 	return (
 		<div className="flex max-w-sm flex-col items-center gap-2 px-6 text-center">
@@ -334,8 +368,72 @@ function PreviewMessage({
 			) : null}
 			<p className="font-medium text-sm">{title}</p>
 			<p className="text-muted-foreground text-sm">{children}</p>
+			{action ? <div className="mt-2">{action}</div> : null}
 		</div>
 	);
+}
+
+function FileDownloadButton({ file }: { file: CanvasFile }) {
+	if (!file.url) return null;
+
+	return (
+		<Button
+			render={
+				// biome-ignore lint/a11y/useAnchorContent: The Button's children provide the accessible link label.
+				<a
+					download={file.filename ?? file.display_name}
+					href={file.url}
+					rel="noreferrer noopener"
+					target="_blank"
+				/>
+			}
+			size="sm"
+		>
+			<Download data-icon="inline-start" />
+			Download
+		</Button>
+	);
+}
+
+const canvasOfficeExtensions = new Set(["docx", "pptx", "xlsx"]);
+const canvasOfficeContentTypes = new Set([
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export function isCanvasOfficeDocument(file: CanvasFile) {
+	const contentType = file.content_type?.toLowerCase();
+	if (contentType && canvasOfficeContentTypes.has(contentType)) return true;
+
+	const name = file.filename ?? file.display_name;
+	const extension = name.toLowerCase().split(".").at(-1);
+	return extension ? canvasOfficeExtensions.has(extension) : false;
+}
+
+export function getCanvasDocumentPreviewUrl(
+	file: CanvasFile,
+	canvasBaseUrl?: string,
+	currentOrigin = typeof window === "undefined"
+		? undefined
+		: window.location.origin,
+) {
+	if (!isCanvasOfficeDocument(file) || !canvasBaseUrl || !currentOrigin) {
+		return undefined;
+	}
+
+	try {
+		const previewUrl = new URL(
+			`/courses/${file.course_id}/files/${file.id}/preview`,
+			canvasBaseUrl,
+		);
+		if (previewUrl.origin !== currentOrigin) return undefined;
+
+		previewUrl.searchParams.set("canvas_v5_native", "1");
+		return previewUrl.toString();
+	} catch {
+		return undefined;
+	}
 }
 
 export function formatCanvasFileMeta(size?: number, type?: string) {

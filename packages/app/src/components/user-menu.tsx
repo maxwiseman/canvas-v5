@@ -41,7 +41,7 @@ export default function UserMenu() {
 
 	if (appAuth.status !== "authenticated") {
 		return (
-			<Button variant="outline" onClick={runtime.openAppLogin}>
+			<Button variant="outline" onClick={() => void runtime.openAppLogin()}>
 				Sign In
 			</Button>
 		);

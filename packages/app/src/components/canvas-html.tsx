@@ -161,7 +161,7 @@ export function resolveCanvasHtmlLink(
 	if (!isCanvasUrl) return { kind: "external", href };
 
 	const fileMatch = resolvedUrl.pathname.match(
-		/^\/courses\/(\d+)\/files\/(\d+)(?:\/preview)?\/?$/,
+		/^\/courses\/(\d+)\/files\/(\d+)(?:\/(?:download|preview))?\/?$/,
 	);
 	if (fileMatch) {
 		return {

@@ -3,10 +3,7 @@ import {
 	fetchNormalizedCourses,
 } from "@canvas-v5/canvas-core";
 import { CanvasRestTransport } from "@canvas-v5/canvas-sdk/transports";
-
-const APP_BASE_URL =
-	import.meta.env.VITE_CANVAS_V5_APP_ORIGIN?.replace(/\/$/, "") ??
-	"http://localhost:3000";
+import { APP_BASE_URL } from "../lib/config";
 
 export default defineBackground(() => {
 	browser.runtime.onMessage.addListener((message) => {

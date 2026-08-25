@@ -25,6 +25,15 @@ describe("resolveCanvasHtmlLink", () => {
 		).toMatchObject({ kind: "file", courseId: 42, fileId: 99 });
 	});
 
+	test("intercepts direct Canvas download URLs", () => {
+		expect(
+			resolveCanvasHtmlLink(
+				"/courses/42/files/99/download?download_frd=1",
+				"https://school.instructure.com",
+			),
+		).toMatchObject({ kind: "file", courseId: 42, fileId: 99 });
+	});
+
 	test("does not intercept file-shaped links from another origin", () => {
 		expect(
 			resolveCanvasHtmlLink(

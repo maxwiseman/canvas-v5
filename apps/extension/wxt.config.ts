@@ -25,17 +25,16 @@ export default defineConfig({
 		],
 	}),
 	manifest: () => {
-		const configuredAppOrigin = process.env.VITE_CANVAS_V5_APP_ORIGIN;
-		const appHostPermission = configuredAppOrigin
-			? `${new URL(configuredAppOrigin).origin}/*`
-			: undefined;
+		const configuredAppOrigin =
+			process.env.VITE_CANVAS_V5_APP_ORIGIN ?? "https://canvas.maxw.app";
+		const appHostPermission = `${new URL(configuredAppOrigin).origin}/*`;
 		return {
-			permissions: ["alarms", "notifications", "storage"],
+			permissions: ["alarms", "notifications", "storage", "tabs"],
 			host_permissions: [
 				"*://*.instructure.com/*",
 				"http://localhost:3000/*",
 				"http://localhost:3001/*",
-				...(appHostPermission ? [appHostPermission] : []),
+				appHostPermission,
 			],
 			name: "Canvas v5",
 		};
