@@ -3,6 +3,7 @@ import type {
 	CanvasSyncBatch,
 	CanvasSyncRepository,
 	CanvasSyncResult,
+	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
 import type {
 	CanvasAccount,
@@ -40,6 +41,7 @@ type StoreName =
 	| "enrollments"
 	| "people"
 	| "assignments"
+	| "resources"
 	| "modules"
 	| "courseHomes"
 	| "announcements"
@@ -66,6 +68,7 @@ const STORE_NAMES: StoreName[] = [
 	"enrollments",
 	"people",
 	"assignments",
+	"resources",
 	"modules",
 	"courseHomes",
 	"announcements",
@@ -92,6 +95,7 @@ type StoreRecord =
 	| CanvasCourseUser
 	| CanvasEnrollment
 	| CanvasAssignment
+	| NormalizedCanvasResource
 	| CanvasModule
 	| CanvasCourseHome
 	| CanvasAnnouncement
@@ -121,6 +125,7 @@ export function emptySnapshot(mode: CanvasRuntimeMode): CanvasRuntimeSnapshot {
 		enrollments: [],
 		people: [],
 		assignments: [],
+		resources: [],
 		modules: [],
 		courseHomes: [],
 		announcements: [],
@@ -149,6 +154,7 @@ export function createInitialSyncScopes(): SyncScopeState[] {
 		"enrollments",
 		"people",
 		"assignments",
+		"search",
 		"modules",
 		"course-home",
 		"announcements",
@@ -182,6 +188,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			enrollments,
 			people,
 			assignments,
+			resources,
 			modules,
 			courseHomes,
 			announcements,
@@ -207,6 +214,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			this.getAll<CanvasEnrollment>("enrollments"),
 			this.getAll<CanvasCourseUser>("people"),
 			this.getAll<CanvasAssignment>("assignments"),
+			this.getAll<NormalizedCanvasResource>("resources"),
 			this.getAll<CanvasModule>("modules"),
 			this.getAll<CanvasCourseHome>("courseHomes"),
 			this.getAll<CanvasAnnouncement>("announcements"),
@@ -251,6 +259,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			enrollments,
 			people,
 			assignments: assignments.filter(belongsToActiveAccount),
+			resources: resources.filter(belongsToActiveAccount),
 			modules,
 			courseHomes,
 			announcements,
@@ -300,7 +309,9 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			}
 		>(storeName);
 		const scopeCourseId =
-			batch.scope === "assignments" ? Number(batch.scopeKey) : undefined;
+			batch.scope === "assignments" || batch.scope === "resources"
+				? Number(batch.scopeKey)
+				: undefined;
 		const retained = existing.filter((record) => {
 			if (record.canvasAccountId !== batch.account.id) return true;
 			if (batch.scope === "courses") return false;
@@ -338,7 +349,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			);
 		}
 		this.dbPromise ??= new Promise((resolve, reject) => {
-			const request = indexedDB.open(this.databaseName, 6);
+			const request = indexedDB.open(this.databaseName, 7);
 			request.onupgradeneeded = () => {
 				const db = request.result;
 				for (const storeName of STORE_NAMES) {

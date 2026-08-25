@@ -1,5 +1,6 @@
 import {
 	fetchNormalizedAssignments,
+	fetchNormalizedCourseResources,
 	fetchNormalizedCourses,
 } from "@canvas-v5/canvas-core";
 import { CanvasRestTransport } from "@canvas-v5/canvas-sdk/transports";
@@ -241,10 +242,20 @@ async function syncCanvasTarget(
 	};
 	const courses = await fetchNormalizedCourses(source, account, observedAt);
 	const assignments: Array<{ courseId: number; records: unknown[] }> = [];
+	const resources: Array<{ courseId: number; records: unknown[] }> = [];
 	for (const course of courses) {
 		assignments.push({
 			courseId: course.id,
 			records: await fetchNormalizedAssignments(
+				source,
+				account,
+				course.id,
+				observedAt,
+			),
+		});
+		resources.push({
+			courseId: course.id,
+			records: await fetchNormalizedCourseResources(
 				source,
 				account,
 				course.id,
@@ -261,6 +272,7 @@ async function syncCanvasTarget(
 			observedAt,
 			courses,
 			assignments,
+			resources,
 		},
 	});
 	if (!upload.ok) {

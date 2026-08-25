@@ -2,6 +2,7 @@ import type {
 	IconId,
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
+	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
 import { relations } from "drizzle-orm";
 import {
@@ -186,6 +187,46 @@ export const canvasCachedAssignment = pgTable(
 			table.canvasCourseId,
 		),
 		index("canvas_cached_assignment_user_id_idx").on(table.userId),
+	],
+);
+
+export const canvasCachedResource = pgTable(
+	"canvas_cached_resource",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		canvasIdentityId: text("canvas_identity_id")
+			.notNull()
+			.references(() => canvasIdentity.id, { onDelete: "cascade" }),
+		canvasCourseId: integer("canvas_course_id").notNull(),
+		resourceType: text("resource_type").notNull(),
+		canvasResourceId: text("canvas_resource_id").notNull(),
+		payload: jsonb("payload").$type<NormalizedCanvasResource>().notNull(),
+		contentHash: text("content_hash").notNull(),
+		canvasUpdatedAt: timestamp("canvas_updated_at"),
+		generationId: text("generation_id").notNull(),
+		observedAt: timestamp("observed_at").notNull(),
+		deletedAt: timestamp("deleted_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("canvas_cached_resource_identity_resource_unique_idx").on(
+			table.canvasIdentityId,
+			table.canvasCourseId,
+			table.resourceType,
+			table.canvasResourceId,
+		),
+		index("canvas_cached_resource_course_idx").on(
+			table.canvasIdentityId,
+			table.canvasCourseId,
+		),
+		index("canvas_cached_resource_user_id_idx").on(table.userId),
 	],
 );
 

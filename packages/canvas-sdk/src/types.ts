@@ -1,3 +1,5 @@
+import type { NormalizedCanvasResource } from "@canvas-v5/canvas-core";
+
 export type CanvasRuntimeMode = "extension" | "web" | "mock";
 
 export type CanvasAuthState =
@@ -77,6 +79,7 @@ export type CanvasCourseDefaultView =
 	| "syllabus";
 
 export interface CanvasPage extends Record<string, unknown> {
+	canvasAccountId?: string;
 	id?: string;
 	course_id?: number;
 	page_id: number;
@@ -332,6 +335,7 @@ export interface CanvasModuleItem extends Record<string, unknown> {
 }
 
 export interface CanvasAnnouncement {
+	canvasAccountId?: string;
 	id: number;
 	course_id: number;
 	title: string;
@@ -391,6 +395,7 @@ export interface CanvasSubmissionInput {
 }
 
 export interface CanvasQuiz extends Record<string, unknown> {
+	canvasAccountId?: string;
 	id: number;
 	course_id: number;
 	title: string;
@@ -410,6 +415,7 @@ export interface CanvasQuiz extends Record<string, unknown> {
 }
 
 export interface CanvasDiscussionTopic extends Record<string, unknown> {
+	canvasAccountId?: string;
 	id: number;
 	course_id: number;
 	title: string;
@@ -426,6 +432,7 @@ export interface CanvasDiscussionTopic extends Record<string, unknown> {
 }
 
 export interface CanvasDiscussionEntry extends Record<string, unknown> {
+	canvasAccountId?: string;
 	id: number;
 	topic_id: number;
 	course_id: number;
@@ -441,6 +448,7 @@ export interface CanvasDiscussionEntry extends Record<string, unknown> {
 }
 
 export interface CanvasFile extends Record<string, unknown> {
+	canvasAccountId?: string;
 	id: number;
 	course_id: number;
 	display_name: string;
@@ -590,7 +598,8 @@ export type SyncScope =
 	| "planner"
 	| "conversations"
 	| "notifications"
-	| "course-overlays";
+	| "course-overlays"
+	| "search";
 
 export interface SyncScopeState {
 	scope: SyncScope;
@@ -624,6 +633,7 @@ export interface CanvasRuntimeSnapshot {
 	enrollments: CanvasEnrollment[];
 	people: CanvasCourseUser[];
 	assignments: CanvasAssignment[];
+	resources: NormalizedCanvasResource[];
 	modules: CanvasModule[];
 	courseHomes: CanvasCourseHome[];
 	announcements: CanvasAnnouncement[];

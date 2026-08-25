@@ -29,7 +29,7 @@ const paginationSchema = {
 };
 
 export function createCanvasMcpServer(userId: string) {
-	const server = new McpServer({ name: "canvas-v5", version: "0.2.0" });
+	const server = new McpServer({ name: "canvas-v5", version: "0.3.0" });
 
 	server.registerTool(
 		"canvas_list_accounts",
@@ -250,6 +250,90 @@ export function createCanvasMcpServer(userId: string) {
 	);
 
 	server.registerTool(
+		"canvas_search",
+		{
+			title: "Search cached Canvas content",
+			description:
+				"Search the local-first Canvas cache across courses, assignments, pages, quizzes, announcements, discussions, discussion posts, and file metadata. Content is refreshed in the background; set refresh=true only when newer Canvas data is required.",
+			inputSchema: {
+				query: z.string().min(1),
+				accountId: z.string().optional(),
+				courseId: z.number().int().optional(),
+				refresh: z.boolean().default(false),
+				limit: z.number().int().min(1).max(100).default(25),
+			},
+			annotations: { readOnlyHint: true, idempotentHint: true },
+		},
+		async ({ query, accountId, courseId, refresh, limit }) =>
+			runTool(async () => {
+				const resolvedAccountId = await resolveAccountId(userId, accountId);
+				const acquisition = await acquireAccount(
+					userId,
+					resolvedAccountId,
+					refresh,
+				);
+				const repository = new PostgresCanvasRepository(db, userId);
+				const [courses, assignments, resources] = await Promise.all([
+					repository.listCourses(resolvedAccountId),
+					repository.listAssignments(resolvedAccountId, courseId),
+					repository.listResources(resolvedAccountId, courseId),
+				]);
+				const courseById = new Map(
+					courses.map((course) => [course.id, course]),
+				);
+				const terms = searchText(query).split(" ").filter(Boolean);
+				const results = [
+					...(courseId === undefined
+						? courses.map((course) => ({
+								kind: "course",
+								courseId: course.id,
+								title: course.name,
+								courseName: course.name,
+								body: course.syllabus_body ?? "",
+							}))
+						: []),
+					...assignments.map((assignment) => ({
+						kind: "assignment",
+						courseId: assignment.course_id,
+						resourceId: String(assignment.id),
+						title: assignment.name,
+						courseName: courseById.get(assignment.course_id)?.name,
+						body: assignment.description ?? "",
+						htmlUrl: assignment.html_url ?? null,
+					})),
+					...resources.map((resource) => ({
+						kind: resource.resourceType,
+						courseId: resource.course_id,
+						resourceId: resource.canvasResourceId,
+						title: resource.title,
+						courseName: courseById.get(resource.course_id)?.name,
+						body: resource.body ?? "",
+						htmlUrl: resource.html_url ?? null,
+					})),
+				]
+					.map((result) => ({
+						...result,
+						searchValue: searchText(
+							`${result.title} ${result.courseName ?? ""} ${result.body}`,
+						),
+					}))
+					.filter((result) =>
+						terms.every((term) => result.searchValue.includes(term)),
+					)
+					.slice(0, limit)
+					.map(({ body, searchValue: _searchValue, ...result }) => ({
+						...result,
+						snippet: contentSnippet(body),
+					}));
+				const health = await accountHealth(userId, resolvedAccountId);
+				return success(
+					{ account: health, query, results, acquisition },
+					`Found ${results.length} cached Canvas search result${results.length === 1 ? "" : "s"}.`,
+				);
+			}),
+	);
+
+	server.registerTool(
 		"canvas_refresh",
 		{
 			title: "Refresh Canvas data",
@@ -380,6 +464,22 @@ function validateTimezone(timezone: string) {
 			`timezone must be a valid IANA timezone; received ${timezone}.`,
 		);
 	}
+}
+
+function searchText(value: string) {
+	return value
+		.replace(/<[^>]*>/g, " ")
+		.toLocaleLowerCase()
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function contentSnippet(value: string) {
+	const text = value
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	return text.length > 240 ? `${text.slice(0, 237)}...` : text || null;
 }
 
 async function runTool(

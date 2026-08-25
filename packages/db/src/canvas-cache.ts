@@ -5,6 +5,7 @@ import type {
 	CanvasSyncResult,
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
+	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
 import { and, asc, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -12,6 +13,7 @@ import type { CanvasDb } from "./index";
 import {
 	canvasCachedAssignment,
 	canvasCachedCourse,
+	canvasCachedResource,
 	canvasSyncState,
 } from "./schema/canvas";
 
@@ -28,9 +30,13 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 			await this.applyCourses(
 				batch as unknown as CanvasSyncBatch<NormalizedCanvasCourse>,
 			);
-		} else {
+		} else if (batch.scope === "assignments") {
 			await this.applyAssignments(
 				batch as unknown as CanvasSyncBatch<NormalizedCanvasAssignment>,
+			);
+		} else {
+			await this.applyResources(
+				batch as unknown as CanvasSyncBatch<NormalizedCanvasResource>,
 			);
 		}
 
@@ -96,6 +102,27 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 				),
 			);
 		return row?.payload;
+	}
+
+	async listResources(canvasIdentityId: string, courseId?: number) {
+		const conditions = [
+			eq(canvasCachedResource.userId, this.userId),
+			eq(canvasCachedResource.canvasIdentityId, canvasIdentityId),
+			isNull(canvasCachedResource.deletedAt),
+		];
+		if (courseId !== undefined) {
+			conditions.push(eq(canvasCachedResource.canvasCourseId, courseId));
+		}
+		const rows = await this.database
+			.select({ payload: canvasCachedResource.payload })
+			.from(canvasCachedResource)
+			.where(and(...conditions))
+			.orderBy(
+				asc(canvasCachedResource.canvasCourseId),
+				asc(canvasCachedResource.resourceType),
+				asc(canvasCachedResource.canvasResourceId),
+			);
+		return rows.map((row) => row.payload);
 	}
 
 	private async applyCourses(batch: CanvasSyncBatch<NormalizedCanvasCourse>) {
@@ -213,6 +240,69 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 				setWhere: lte(canvasCachedAssignment.observedAt, observedAt),
 			});
 		await this.database.batch([upsertAssignments, expireMissing, updateState]);
+	}
+
+	private async applyResources(
+		batch: CanvasSyncBatch<NormalizedCanvasResource>,
+	) {
+		const courseId = Number(batch.scopeKey);
+		if (!Number.isFinite(courseId)) {
+			throw new Error("Resource snapshots require a numeric course scope key.");
+		}
+		const observedAt = new Date(batch.observedAt);
+		const expireMissing = this.database
+			.update(canvasCachedResource)
+			.set({ deletedAt: observedAt })
+			.where(
+				and(
+					eq(canvasCachedResource.canvasIdentityId, batch.account.id),
+					eq(canvasCachedResource.canvasCourseId, courseId),
+					ne(canvasCachedResource.generationId, batch.generationId),
+					lte(canvasCachedResource.observedAt, observedAt),
+					isNull(canvasCachedResource.deletedAt),
+				),
+			);
+		const updateState = this.syncStateQuery(batch, observedAt);
+		if (batch.records.length === 0) {
+			await this.database.batch([expireMissing, updateState]);
+			return;
+		}
+		const upsertResources = this.database
+			.insert(canvasCachedResource)
+			.values(
+				batch.records.map((resource) => ({
+					id: `${batch.account.id}:${resource.id}`,
+					userId: this.userId,
+					canvasIdentityId: batch.account.id,
+					canvasCourseId: courseId,
+					resourceType: resource.resourceType,
+					canvasResourceId: resource.canvasResourceId,
+					payload: resource,
+					contentHash: resource.contentHash,
+					canvasUpdatedAt: optionalDate(resource.updated_at),
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				})),
+			)
+			.onConflictDoUpdate({
+				target: [
+					canvasCachedResource.canvasIdentityId,
+					canvasCachedResource.canvasCourseId,
+					canvasCachedResource.resourceType,
+					canvasCachedResource.canvasResourceId,
+				],
+				set: {
+					payload: sql`excluded.payload`,
+					contentHash: sql`excluded.content_hash`,
+					canvasUpdatedAt: sql`excluded.canvas_updated_at`,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				},
+				setWhere: lte(canvasCachedResource.observedAt, observedAt),
+			});
+		await this.database.batch([upsertResources, expireMissing, updateState]);
 	}
 
 	private syncStateQuery(

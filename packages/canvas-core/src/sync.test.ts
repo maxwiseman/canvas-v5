@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { syncCoursesAndAssignments } from "./sync";
+import {
+	fetchNormalizedCourseResources,
+	syncCoursesAndAssignments,
+} from "./sync";
 import type {
 	CanvasDataSource,
 	CanvasRecordMetadata,
@@ -58,5 +61,63 @@ describe("headless Canvas sync", () => {
 		expect(batches[1]?.records[0]?.canvasAccountId).toBe("account-1");
 		expect(requestedPaths[1]).toContain("include[]=submission");
 		expect(requestedPaths[1]).toContain("override_assignment_dates=true");
+	});
+});
+
+describe("search resource sync", () => {
+	test("fetches searchable bodies while keeping files metadata-only", async () => {
+		const source: CanvasDataSource = {
+			async paginatedRequest<T>(path: string) {
+				if (path.includes("/pages?")) {
+					return [{ page_id: 1, url: "welcome", title: "Welcome" }] as T[];
+				}
+				if (path.includes("/quizzes?")) {
+					return [{ id: 2, title: "Quiz one" }] as T[];
+				}
+				if (path.includes("discussion_topics")) {
+					return [{ id: 3, title: "Introductions", message: "Say hi" }] as T[];
+				}
+				if (path.includes("/files?")) {
+					return [{ id: 4, display_name: "Syllabus.pdf", size: 1200 }] as T[];
+				}
+				return [{ id: 5, title: "News", message: "Class update" }] as T[];
+			},
+			async request<T>(path: string) {
+				if (path.includes("/pages/")) {
+					return {
+						page_id: 1,
+						url: "welcome",
+						title: "Welcome",
+						body: "<p>Detailed page content</p>",
+					} as T;
+				}
+				if (path.includes("/quizzes/")) {
+					return { id: 2, title: "Quiz one", description: "Quiz details" } as T;
+				}
+				return {
+					view: [{ id: 6, user_name: "Student", message: "My post" }],
+				} as T;
+			},
+		};
+
+		const resources = await fetchNormalizedCourseResources(
+			source,
+			{ id: "account-1", baseUrl: "https://canvas.example.edu" },
+			12,
+			"2026-08-25T12:00:00.000Z",
+		);
+
+		expect(resources.find((item) => item.resourceType === "page")?.body).toBe(
+			"<p>Detailed page content</p>",
+		);
+		expect(resources.find((item) => item.resourceType === "quiz")?.body).toBe(
+			"Quiz details",
+		);
+		expect(
+			resources.find((item) => item.resourceType === "discussion-entry")?.body,
+		).toBe("My post");
+		expect(
+			resources.find((item) => item.resourceType === "file")?.body,
+		).toBeNull();
 	});
 });

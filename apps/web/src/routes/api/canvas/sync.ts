@@ -2,6 +2,7 @@ import { auth } from "@canvas-v5/auth";
 import {
 	normalizeCanvasAssignment,
 	normalizeCanvasCourse,
+	normalizeCanvasResource,
 } from "@canvas-v5/canvas-core";
 import { db, PostgresCanvasRepository } from "@canvas-v5/db";
 import { canvasIdentity, canvasSyncRequest } from "@canvas-v5/db/schema/canvas";
@@ -81,6 +82,29 @@ export const Route = createFileRoute("/api/canvas/sync")({
 						}),
 					);
 				}
+				for (const group of input.resources) {
+					const resources = await Promise.all(
+						group.records.map((resource) =>
+							normalizeCanvasResource(
+								resource,
+								account,
+								group.courseId,
+								resource.resourceType,
+								observedAt,
+							),
+						),
+					);
+					results.push(
+						await repository.applySnapshot({
+							account,
+							scope: "resources",
+							scopeKey: String(group.courseId),
+							generationId,
+							observedAt,
+							records: resources,
+						}),
+					);
+				}
 
 				if (input.requestId) {
 					await db
@@ -116,4 +140,25 @@ const syncInput = z.object({
 			records: z.array(z.record(z.string(), z.unknown())),
 		}),
 	),
+	resources: z
+		.array(
+			z.object({
+				courseId: z.number().int(),
+				records: z.array(
+					z
+						.object({
+							resourceType: z.enum([
+								"announcement",
+								"page",
+								"quiz",
+								"discussion",
+								"discussion-entry",
+								"file",
+							]),
+						})
+						.passthrough(),
+				),
+			}),
+		)
+		.default([]),
 });

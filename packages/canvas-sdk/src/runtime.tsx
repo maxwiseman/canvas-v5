@@ -1,6 +1,7 @@
 import {
 	type CanvasAccountRef,
 	fetchNormalizedAssignments,
+	fetchNormalizedCourseResources,
 	fetchNormalizedCourses,
 } from "@canvas-v5/canvas-core";
 import {
@@ -283,11 +284,86 @@ export class CanvasRuntime {
 			canvasAuth.status !== "authenticated"
 		) {
 			await Promise.allSettled([this.syncCourses(), this.syncCourseOverlays()]);
+			void this.syncSearchContent();
 		}
 
 		if (canvasAuth.status === "authenticated") {
 			await this.registerActiveConnection(this.snapshot.activeAccount);
 			await Promise.allSettled([this.syncCourses(), this.syncCourseOverlays()]);
+			void this.syncSearchContent();
+		}
+	}
+
+	async syncSearchContent(force = false) {
+		const searchScope = this.snapshot.syncScopes.find(
+			(scope) => scope.scope === "search",
+		);
+		const lastSyncedAt = searchScope?.lastSyncedAt
+			? new Date(searchScope.lastSyncedAt).getTime()
+			: 0;
+		if (!force && Date.now() - lastSyncedAt < 30 * 60 * 1000) return;
+
+		this.setScope("search", {
+			status: "syncing",
+			pendingJobs: this.snapshot.courses.length,
+		});
+		try {
+			const syncAccount = this.getSyncAccount();
+			const generationId = crypto.randomUUID();
+			const observedAt = new Date().toISOString();
+			const assignments = [] as CanvasRuntimeSnapshot["assignments"];
+			const resources = [] as CanvasRuntimeSnapshot["resources"];
+			for (const course of this.snapshot.courses) {
+				const [courseAssignments, courseResources] = await Promise.all([
+					fetchNormalizedAssignments(
+						this.options.canvasTransport,
+						syncAccount,
+						course.id,
+						observedAt,
+					),
+					fetchNormalizedCourseResources(
+						this.options.canvasTransport,
+						syncAccount,
+						course.id,
+						observedAt,
+					),
+				]);
+				assignments.push(
+					...courseAssignments.map(
+						(assignment) =>
+							({
+								...assignment,
+							}) as CanvasRuntimeSnapshot["assignments"][number],
+					),
+				);
+				resources.push(...courseResources);
+				await Promise.all([
+					this.store.applySnapshot({
+						account: syncAccount,
+						scope: "assignments",
+						scopeKey: String(course.id),
+						generationId,
+						observedAt,
+						records: courseAssignments,
+					}),
+					this.store.applySnapshot({
+						account: syncAccount,
+						scope: "resources",
+						scopeKey: String(course.id),
+						generationId,
+						observedAt,
+						records: courseResources,
+					}),
+				]);
+			}
+			this.setSnapshot({ ...this.snapshot, assignments, resources });
+			this.finishScope("search");
+		} catch (error) {
+			this.failScope(
+				"search",
+				error,
+				"Unable to refresh the local search index.",
+			);
 		}
 	}
 
@@ -1534,9 +1610,17 @@ export class CanvasRuntime {
 	}
 
 	private setScope(scope: SyncScope, patch: Partial<SyncScopeState>) {
-		const syncScopes = this.snapshot.syncScopes.map((item) =>
-			item.scope === scope ? { ...item, ...patch } : item,
+		const hasScope = this.snapshot.syncScopes.some(
+			(item) => item.scope === scope,
 		);
+		const syncScopes = hasScope
+			? this.snapshot.syncScopes.map((item) =>
+					item.scope === scope ? { ...item, ...patch } : item,
+				)
+			: [
+					...this.snapshot.syncScopes,
+					{ scope, status: "idle" as const, pendingJobs: 0, ...patch },
+				];
 		this.setSnapshot({ ...this.snapshot, syncScopes });
 		void this.store.replaceAll("syncScopes", syncScopes);
 	}

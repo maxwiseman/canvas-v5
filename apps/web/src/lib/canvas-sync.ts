@@ -1,6 +1,6 @@
 import {
 	type CanvasAccountRef,
-	syncCoursesAndAssignments,
+	syncCanvasSearchCache,
 } from "@canvas-v5/canvas-core";
 import { CanvasRestTransport } from "@canvas-v5/canvas-sdk/transports";
 import { db, PostgresCanvasRepository } from "@canvas-v5/db";
@@ -43,7 +43,7 @@ export async function syncCanvasIdentityDirect(
 	};
 
 	try {
-		const results = await syncCoursesAndAssignments({
+		const results = await syncCanvasSearchCache({
 			source,
 			repository: new PostgresCanvasRepository(db, userId),
 			account,
@@ -242,7 +242,7 @@ export async function requestExtensionSync(
 			id: crypto.randomUUID(),
 			userId,
 			canvasIdentityId,
-			scope: "assignments",
+			scope: "search",
 			reason,
 			status: "pending",
 		})

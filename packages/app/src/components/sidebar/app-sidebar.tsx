@@ -6,6 +6,7 @@ import {
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarGroupLabel,
+	SidebarHeader,
 	SidebarMenuAction,
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -15,6 +16,7 @@ import { CalendarDays, GraduationCap, Home, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type ComponentType, useState } from "react";
 import { resolveCourseIconId } from "../../lib/course-icon";
+import { GlobalSearch } from "../global-search";
 import { IconPicker, isIconId } from "../icon-picker";
 import UserMenu from "../user-menu";
 import { ClassSidebar } from "./class-sidebar";
@@ -41,6 +43,9 @@ export function AppSidebar() {
 
 	return (
 		<Sidebar variant="inset">
+			<SidebarHeader>
+				<GlobalSearch />
+			</SidebarHeader>
 			<SidebarContent>
 				<AnimatePresence initial={false} mode="wait">
 					{hasGoneBack && (

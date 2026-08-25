@@ -2,8 +2,10 @@ import { z } from "zod";
 
 import type {
 	CanvasAccountRef,
+	CanvasResourceType,
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
+	NormalizedCanvasResource,
 } from "./types";
 
 const courseDefaultViewSchema = z.enum([
@@ -161,6 +163,119 @@ export async function normalizeCanvasAssignment(
 		observedAt,
 		contentHash: await hashCanvasRecord(normalized),
 	};
+}
+
+export async function normalizeCanvasResource(
+	payload: unknown,
+	account: CanvasAccountRef,
+	courseId: number,
+	resourceType: CanvasResourceType,
+	observedAt: string,
+): Promise<NormalizedCanvasResource> {
+	const record = z.record(z.string(), z.unknown()).parse(payload);
+	const rawId =
+		record.canvasResourceId ??
+		(resourceType === "page"
+			? (record.url ?? record.page_id)
+			: resourceType === "discussion-entry"
+				? `${String(record.topic_id ?? "unknown")}:${String(record.id ?? "unknown")}`
+				: record.id);
+	const canvasResourceId = String(rawId ?? "unknown");
+	const title = resourceTitle(record, resourceType);
+	const body = resourceBody(record, resourceType);
+	const normalized = {
+		id: `${courseId}:${resourceType}:${canvasResourceId}`,
+		course_id: courseId,
+		resourceType,
+		canvasResourceId,
+		title,
+		body,
+		html_url: optionalString(record.html_url),
+		updated_at:
+			optionalString(record.updated_at) ??
+			optionalString(record.posted_at) ??
+			optionalString(record.created_at) ??
+			null,
+		metadata: resourceMetadata(record, resourceType),
+	};
+
+	return {
+		...normalized,
+		canvasAccountId: account.id,
+		observedAt,
+		contentHash: await hashCanvasRecord(normalized),
+	};
+}
+
+function resourceTitle(
+	record: Record<string, unknown>,
+	resourceType: CanvasResourceType,
+) {
+	const title =
+		optionalString(record.title) ??
+		optionalString(record.display_name) ??
+		optionalString(record.filename) ??
+		(resourceType === "discussion-entry"
+			? optionalString(record.user_name)
+			: undefined);
+	return title ?? untitledResourceLabel(resourceType);
+}
+
+function resourceBody(
+	record: Record<string, unknown>,
+	resourceType: CanvasResourceType,
+) {
+	if (resourceType === "file") return null;
+	return (
+		optionalString(record.body) ??
+		optionalString(record.description) ??
+		optionalString(record.message) ??
+		null
+	);
+}
+
+function resourceMetadata(
+	record: Record<string, unknown>,
+	resourceType: CanvasResourceType,
+) {
+	const metadata: Record<string, unknown> = {};
+	if (
+		record.metadata &&
+		typeof record.metadata === "object" &&
+		!Array.isArray(record.metadata)
+	) {
+		Object.assign(metadata, record.metadata);
+	}
+	for (const key of [
+		"url",
+		"page_id",
+		"topic_id",
+		"user_id",
+		"user_name",
+		"posted_at",
+		"created_at",
+		"due_at",
+		"lock_at",
+		"unlock_at",
+		"points_possible",
+		"question_count",
+		"content_type",
+		"display_name",
+		"filename",
+		"size",
+	] as const) {
+		if (record[key] !== undefined) metadata[key] = record[key];
+	}
+	metadata.resourceType = resourceType;
+	return metadata;
+}
+
+function optionalString(value: unknown) {
+	return typeof value === "string" ? value : undefined;
+}
+
+function untitledResourceLabel(resourceType: CanvasResourceType) {
+	return `Untitled ${resourceType.replace("-", " ")}`;
 }
 
 export async function hashCanvasRecord(value: unknown): Promise<string> {

@@ -156,7 +156,27 @@ export interface NormalizedCanvasSubmission {
 	grade?: string | null;
 }
 
-export type CanvasSyncScope = "courses" | "assignments";
+export type CanvasResourceType =
+	| "announcement"
+	| "page"
+	| "quiz"
+	| "discussion"
+	| "discussion-entry"
+	| "file";
+
+export interface NormalizedCanvasResource extends CanvasRecordMetadata {
+	id: string;
+	course_id: number;
+	resourceType: CanvasResourceType;
+	canvasResourceId: string;
+	title: string;
+	body?: string | null;
+	html_url?: string;
+	updated_at?: string | null;
+	metadata?: Record<string, unknown>;
+}
+
+export type CanvasSyncScope = "courses" | "assignments" | "resources";
 
 export interface CanvasSyncBatch<T extends CanvasRecordMetadata> {
 	account: CanvasAccountRef;
