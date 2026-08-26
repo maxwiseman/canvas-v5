@@ -39,7 +39,8 @@ export function AppSidebar() {
 	const [hasGoneBack, setHasGoneBack] = useState(!activeSidebar);
 	const courses = useCourses();
 	const updateCourseIcon = useUpdateCourseIcon();
-	const SidebarComponent = activeSidebar?.sidebar ?? (() => null);
+	const SidebarComponent = activeSidebar?.sidebar;
+	const showMainMenu = hasGoneBack || !SidebarComponent;
 
 	return (
 		<Sidebar variant="inset">
@@ -48,7 +49,7 @@ export function AppSidebar() {
 			</SidebarHeader>
 			<SidebarContent>
 				<AnimatePresence initial={false} mode="wait">
-					{hasGoneBack && (
+					{showMainMenu && (
 						<motion.div
 							key="main-menu"
 							transition={{
@@ -150,7 +151,7 @@ export function AppSidebar() {
 							</SidebarGroup>
 						</motion.div>
 					)}
-					{!hasGoneBack && (
+					{!showMainMenu && SidebarComponent && (
 						<motion.div
 							key="sub-menu"
 							transition={{
