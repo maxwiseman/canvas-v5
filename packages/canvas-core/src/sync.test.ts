@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
+import { CanvasRequestError } from "./errors";
 import {
 	fetchNormalizedCourseResources,
+	syncCanvasSearchCache,
 	syncCoursesAndAssignments,
 } from "./sync";
 import type {
@@ -119,5 +121,106 @@ describe("search resource sync", () => {
 		expect(
 			resources.find((item) => item.resourceType === "file")?.body,
 		).toBeNull();
+	});
+
+	test("treats unavailable resource collections as empty enrichment", async () => {
+		const source: CanvasDataSource = {
+			async paginatedRequest<T>(path: string) {
+				if (path.includes("/pages?")) {
+					throw new CanvasRequestError(404, path);
+				}
+				return [] as T[];
+			},
+			async request<T>() {
+				return {} as T;
+			},
+		};
+
+		await expect(
+			fetchNormalizedCourseResources(
+				source,
+				{ id: "account-1", baseUrl: "https://canvas.example.edu" },
+				263347,
+			),
+		).resolves.toEqual([]);
+	});
+
+	test("does not hide resource collection server failures", async () => {
+		const source: CanvasDataSource = {
+			async paginatedRequest<T>(path: string) {
+				if (path.includes("/pages?")) {
+					throw new CanvasRequestError(500, path);
+				}
+				return [] as T[];
+			},
+			async request<T>() {
+				return {} as T;
+			},
+		};
+
+		await expect(
+			fetchNormalizedCourseResources(
+				source,
+				{ id: "account-1", baseUrl: "https://canvas.example.edu" },
+				263347,
+			),
+		).rejects.toMatchObject({ status: 500 });
+	});
+
+	test("commits assignments when a course Pages collection returns 404", async () => {
+		const batches: CanvasSyncBatch<CanvasRecordMetadata>[] = [];
+		const source: CanvasDataSource = {
+			async paginatedRequest<T>(path: string) {
+				if (path.startsWith("/api/v1/courses?")) {
+					return [{ id: 263347, name: "COSC 101" }] as T[];
+				}
+				if (path.includes("/assignments?")) {
+					return [{ id: 17, name: "Practice" }] as T[];
+				}
+				if (path.includes("/pages?")) {
+					throw new CanvasRequestError(404, path);
+				}
+				return [] as T[];
+			},
+			async request<T>() {
+				return {} as T;
+			},
+		};
+		const repository: CanvasSyncRepository = {
+			async applySnapshot<T extends CanvasRecordMetadata>(
+				batch: CanvasSyncBatch<T>,
+			) {
+				batches.push(batch);
+				return {
+					scope: batch.scope,
+					scopeKey: batch.scopeKey,
+					generationId: batch.generationId,
+					observedAt: batch.observedAt,
+					recordCount: batch.records.length,
+				};
+			},
+		};
+
+		await syncCanvasSearchCache({
+			source,
+			repository,
+			account: {
+				id: "account-1",
+				baseUrl: "https://canvas.example.edu",
+			},
+			observedAt: "2026-08-26T12:00:00.000Z",
+			generationId: "generation-1",
+		});
+
+		expect(batches.map((batch) => batch.scope)).toEqual([
+			"courses",
+			"assignments",
+			"resources",
+		]);
+		expect(batches[1]?.records).toHaveLength(1);
+		expect(batches[1]?.records[0]).toMatchObject({
+			id: 17,
+			course_id: 263347,
+		});
 	});
 });

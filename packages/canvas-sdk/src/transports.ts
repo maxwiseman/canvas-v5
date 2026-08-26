@@ -1,3 +1,4 @@
+import { CanvasRequestError } from "@canvas-v5/canvas-core";
 import type {
 	AppAuthState,
 	AssignmentComment,
@@ -82,7 +83,7 @@ export class CanvasRestTransport implements CanvasTransport {
 		});
 
 		if (!response.ok) {
-			throw new Error(`Canvas request failed (${response.status}) for ${path}`);
+			throw new CanvasRequestError(response.status, path);
 		}
 
 		if (response.status === 204) {
@@ -122,7 +123,7 @@ export class CanvasRestTransport implements CanvasTransport {
 			signal: requestOptions.signal,
 		});
 		if (!response.ok) {
-			throw new Error(`Canvas request failed (${response.status}) for ${path}`);
+			throw new CanvasRequestError(response.status, path);
 		}
 		return response;
 	}

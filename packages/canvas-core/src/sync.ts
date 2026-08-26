@@ -1,3 +1,4 @@
+import { CanvasRequestError } from "./errors";
 import {
 	normalizeCanvasAssignment,
 	normalizeCanvasCourse,
@@ -53,19 +54,24 @@ export async function fetchNormalizedCourseResources(
 ): Promise<NormalizedCanvasResource[]> {
 	const [announcements, pageSummaries, quizSummaries, discussions, files] =
 		await Promise.all([
-			source.paginatedRequest<Record<string, unknown>>(
+			optionalResourceCollection(
+				source,
 				`/api/v1/announcements?context_codes[]=course_${courseId}&per_page=100`,
 			),
-			source.paginatedRequest<Record<string, unknown>>(
+			optionalResourceCollection(
+				source,
 				`/api/v1/courses/${courseId}/pages?per_page=100`,
 			),
-			source.paginatedRequest<Record<string, unknown>>(
+			optionalResourceCollection(
+				source,
 				`/api/v1/courses/${courseId}/quizzes?per_page=100`,
 			),
-			source.paginatedRequest<Record<string, unknown>>(
+			optionalResourceCollection(
+				source,
 				`/api/v1/courses/${courseId}/discussion_topics?order_by=recent_activity&per_page=100`,
 			),
-			source.paginatedRequest<Record<string, unknown>>(
+			optionalResourceCollection(
+				source,
 				`/api/v1/courses/${courseId}/files?per_page=100`,
 			),
 		]);
@@ -134,6 +140,23 @@ export async function fetchNormalizedCourseResources(
 			),
 		),
 	);
+}
+
+async function optionalResourceCollection(
+	source: CanvasDataSource,
+	path: string,
+): Promise<Array<Record<string, unknown>>> {
+	try {
+		return await source.paginatedRequest<Record<string, unknown>>(path);
+	} catch (error) {
+		if (
+			error instanceof CanvasRequestError &&
+			(error.status === 403 || error.status === 404)
+		) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 async function safeRequest<T>(
