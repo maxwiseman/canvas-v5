@@ -1,2 +1,0 @@
-- Add a portable MCP App for interactive upcoming assignments with pagination, links, host theming, and verified dark-mode support.
-- Add OAuth discovery, dynamic client registration, PKCE authorization, consent, and scoped JWT access for hosted ChatGPT, Claude, and other remote MCP clients while preserving personal Canvas V5 bearer tokens.

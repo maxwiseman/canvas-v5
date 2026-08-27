@@ -1,1 +1,0 @@
-- Show each course's configured or inferred course icon in Command-K search results instead of a generic school icon.

@@ -6,7 +6,14 @@ import {
 } from "@modelcontextprotocol/ext-apps";
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { StrictMode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type CSSProperties,
+	StrictMode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 
 import "./styles.css";
@@ -108,6 +115,7 @@ function getStructuredOutput(output: unknown): UpcomingOutput | null {
 }
 
 type ChatGptBridge = {
+	maxHeight?: number;
 	toolOutput?: unknown;
 };
 
@@ -116,10 +124,25 @@ function getChatGptOutput(): UpcomingOutput | null {
 	return getStructuredOutput(openai?.toolOutput);
 }
 
+function getChatGptMaxHeight(): number | undefined {
+	const openai = (window as Window & { openai?: ChatGptBridge }).openai;
+	return typeof openai?.maxHeight === "number" && openai.maxHeight > 0
+		? openai.maxHeight
+		: undefined;
+}
+
+function getHostMaxHeight(context: McpUiHostContext | undefined) {
+	const dimensions = context?.containerDimensions;
+	if (!dimensions) return undefined;
+	if ("height" in dimensions) return dimensions.height;
+	return dimensions.maxHeight;
+}
+
 function CanvasAssignmentsApp() {
 	const standalone = window.parent === window;
 	const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
 	const [chatGptOutput, setChatGptOutput] = useState(getChatGptOutput);
+	const [chatGptMaxHeight, setChatGptMaxHeight] = useState(getChatGptMaxHeight);
 	const [hostContext, setHostContext] = useState<McpUiHostContext>();
 
 	const { app, error } = useApp({
@@ -143,10 +166,14 @@ function CanvasAssignmentsApp() {
 
 	useEffect(() => {
 		if (standalone) return;
-		const updateOutput = () => setChatGptOutput(getChatGptOutput());
-		updateOutput();
-		window.addEventListener("openai:set_globals", updateOutput);
-		return () => window.removeEventListener("openai:set_globals", updateOutput);
+		const updateGlobals = () => {
+			setChatGptOutput(getChatGptOutput());
+			setChatGptMaxHeight(getChatGptMaxHeight());
+		};
+		updateGlobals();
+		window.addEventListener("openai:set_globals", updateGlobals);
+		return () =>
+			window.removeEventListener("openai:set_globals", updateGlobals);
 	}, [standalone]);
 
 	useEffect(() => {
@@ -185,14 +212,29 @@ function CanvasAssignmentsApp() {
 			/>
 		);
 
+	const safeVerticalInset =
+		(hostContext?.safeAreaInsets?.top ?? 0) +
+		(hostContext?.safeAreaInsets?.bottom ?? 0);
+	const widgetMaxHeight = Math.max(
+		0,
+		Math.min(
+			600,
+			getHostMaxHeight(hostContext) ?? Number.POSITIVE_INFINITY,
+			chatGptMaxHeight ?? Number.POSITIVE_INFINITY,
+		) - safeVerticalInset,
+	);
+
 	return (
 		<div
-			style={{
-				paddingTop: hostContext?.safeAreaInsets?.top,
-				paddingRight: hostContext?.safeAreaInsets?.right,
-				paddingBottom: hostContext?.safeAreaInsets?.bottom,
-				paddingLeft: hostContext?.safeAreaInsets?.left,
-			}}
+			style={
+				{
+					"--canvas-widget-max-height": `${widgetMaxHeight}px`,
+					paddingTop: hostContext?.safeAreaInsets?.top,
+					paddingRight: hostContext?.safeAreaInsets?.right,
+					paddingBottom: hostContext?.safeAreaInsets?.bottom,
+					paddingLeft: hostContext?.safeAreaInsets?.left,
+				} as CSSProperties
+			}
 		>
 			<AssignmentsView
 				output={getOutput(toolResult) ?? chatGptOutput}
@@ -317,43 +359,49 @@ function AssignmentsView({
 				</div>
 			) : null}
 
-			{grouped.length === 0 ? (
-				<div className="empty">
-					<div className="emptyMark">✓</div>
-					<h2>You’re clear for now</h2>
-					<p>Ask for a wider date range if you want to look further ahead.</p>
-				</div>
-			) : (
-				<div className="groups">
-					{grouped.map(([label, assignments]) => (
-						<section className="group" key={label}>
-							<h2>{label}</h2>
-							<div className="assignmentList">
-								{assignments.map((assignment) => (
-									<AssignmentRow
-										assignment={assignment}
-										app={app}
-										key={`${assignment.account.id}:${assignment.course.id}:${assignment.id}`}
-									/>
-								))}
-							</div>
-						</section>
-					))}
-				</div>
-			)}
+			<section
+				className="scrollRegion"
+				aria-label="Upcoming assignment list"
+				tabIndex={grouped.length > 0 ? 0 : undefined}
+			>
+				{grouped.length === 0 ? (
+					<div className="empty">
+						<div className="emptyMark">✓</div>
+						<h2>You’re clear for now</h2>
+						<p>Ask for a wider date range if you want to look further ahead.</p>
+					</div>
+				) : (
+					<div className="groups">
+						{grouped.map(([label, assignments]) => (
+							<section className="group" key={label}>
+								<h2>{label}</h2>
+								<div className="assignmentList">
+									{assignments.map((assignment) => (
+										<AssignmentRow
+											assignment={assignment}
+											app={app}
+											key={`${assignment.account.id}:${assignment.course.id}:${assignment.id}`}
+										/>
+									))}
+								</div>
+							</section>
+						))}
+					</div>
+				)}
 
-			{current.pageInfo.hasMore ? (
-				<button
-					className="secondaryButton"
-					type="button"
-					disabled={!app || busy !== null}
-					onClick={() =>
-						runList({ cursor: current.pageInfo.nextCursor, append: true })
-					}
-				>
-					{busy === "more" ? "Loading…" : "Show more"}
-				</button>
-			) : null}
+				{current.pageInfo.hasMore ? (
+					<button
+						className="secondaryButton"
+						type="button"
+						disabled={!app || busy !== null}
+						onClick={() =>
+							runList({ cursor: current.pageInfo.nextCursor, append: true })
+						}
+					>
+						{busy === "more" ? "Loading…" : "Show more"}
+					</button>
+				) : null}
+			</section>
 		</main>
 	);
 }

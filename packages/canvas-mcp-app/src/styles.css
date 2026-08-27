@@ -79,14 +79,19 @@ button {
 }
 
 .shell {
+	display: flex;
+	max-height: var(--canvas-widget-max-height, 600px);
 	width: 100%;
-	min-height: 100%;
+	min-height: 0;
+	flex-direction: column;
+	overflow: hidden;
 	padding: 16px;
 	background: transparent;
 }
 
 .header {
 	display: flex;
+	flex-shrink: 0;
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 16px;
@@ -131,6 +136,7 @@ h1 {
 .notice,
 .error {
 	display: flex;
+	flex-shrink: 0;
 	gap: 7px;
 	margin-top: 14px;
 	padding: 10px 12px;
@@ -147,11 +153,23 @@ h1 {
 	background: var(--canvas-error-background);
 }
 
+.scrollRegion {
+	min-height: 0;
+	margin-top: 20px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding-right: 5px;
+	scrollbar-gutter: stable;
+}
+.scrollRegion:focus-visible {
+	outline: 2px solid var(--color-border-primary, rgba(0, 0, 0, 0.18));
+	outline-offset: -2px;
+	border-radius: 12px;
+}
 .groups {
 	display: flex;
 	flex-direction: column;
 	gap: 18px;
-	margin-top: 20px;
 }
 .group h2 {
 	margin: 0 0 8px;
@@ -276,6 +294,7 @@ h1 {
 
 .state {
 	display: grid;
+	max-height: none;
 	min-height: 180px;
 	align-content: center;
 	justify-items: center;
