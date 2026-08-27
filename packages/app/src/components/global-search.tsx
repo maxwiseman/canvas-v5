@@ -1,4 +1,8 @@
-import { useCanvasRuntime, useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
+import {
+	type IconId,
+	useCanvasRuntime,
+	useCanvasSnapshot,
+} from "@canvas-v5/canvas-sdk";
 import { Button } from "@canvas-v5/ui/components/button";
 import {
 	Command,
@@ -17,7 +21,6 @@ import {
 	Megaphone,
 	MessageSquare,
 	PencilLine,
-	School,
 	ScrollText,
 	Search,
 } from "lucide-react";
@@ -28,6 +31,8 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { resolveCourseIconId } from "../lib/course-icon";
+import { isIconId, PickedIcon } from "./icon-picker";
 
 type SearchItem = {
 	id: string;
@@ -36,7 +41,7 @@ type SearchItem = {
 	keywords: string;
 	href: string;
 	group: string;
-	icon: ComponentType;
+	icon: ComponentType<{ className?: string }> | IconId;
 };
 
 const resourcePresentation = {
@@ -100,7 +105,7 @@ export function GlobalSearch() {
 		<>
 			<Button
 				aria-label="Search Canvas"
-				className="w-full justify-start rounded-2xl px-3 text-muted-foreground"
+				className="w-full justify-start rounded-2xl pr-[7.25px] pl-3 text-muted-foreground"
 				onClick={() => setSearchOpen(true)}
 				variant="outline"
 			>
@@ -122,27 +127,24 @@ export function GlobalSearch() {
 						<CommandEmpty>No local results found.</CommandEmpty>
 						{Array.from(groups, ([heading, groupItems]) => (
 							<CommandGroup heading={heading} key={heading}>
-								{groupItems.map((item) => {
-									const Icon = item.icon;
-									return (
-										<CommandItem
-											key={item.id}
-											onSelect={() => choose(item)}
-											value={item.id}
-										>
-											<Icon />
-											<span className="min-w-0 flex-1">
-												<span className="block truncate">{item.title}</span>
-												{item.subtitle ? (
-													<span className="block truncate text-muted-foreground text-xs">
-														{item.subtitle}
-													</span>
-												) : null}
-											</span>
-											<CommandShortcut aria-hidden="true">↵</CommandShortcut>
-										</CommandItem>
-									);
-								})}
+								{groupItems.map((item) => (
+									<CommandItem
+										key={item.id}
+										onSelect={() => choose(item)}
+										value={item.id}
+									>
+										<SearchResultIcon icon={item.icon} />
+										<span className="min-w-0 flex-1">
+											<span className="block truncate">{item.title}</span>
+											{item.subtitle ? (
+												<span className="block truncate text-muted-foreground text-xs">
+													{item.subtitle}
+												</span>
+											) : null}
+										</span>
+										<CommandShortcut aria-hidden="true">↵</CommandShortcut>
+									</CommandItem>
+								))}
 							</CommandGroup>
 						))}
 					</CommandList>
@@ -163,7 +165,10 @@ function buildSearchItems(snapshot: ReturnType<typeof useCanvasSnapshot>) {
 		keywords: normalizeText(`${course.name} ${course.course_code ?? ""}`),
 		href: `/courses/${course.id}`,
 		group: "Courses",
-		icon: School,
+		icon: resolveCourseIconId(
+			isIconId(course.app?.icon) ? course.app.icon : undefined,
+			course.course_code,
+		),
 	}));
 	const assignmentItems: SearchItem[] = snapshot.assignments.map(
 		(assignment) => {
@@ -197,6 +202,14 @@ function buildSearchItems(snapshot: ReturnType<typeof useCanvasSnapshot>) {
 		};
 	});
 	return [...courseItems, ...assignmentItems, ...resourceItems];
+}
+
+function SearchResultIcon({ icon }: { icon: SearchItem["icon"] }) {
+	if (typeof icon === "string") {
+		return <PickedIcon className="text-muted-foreground" icon={icon} />;
+	}
+	const Icon = icon;
+	return <Icon className="text-muted-foreground" />;
 }
 
 function resourceHref(

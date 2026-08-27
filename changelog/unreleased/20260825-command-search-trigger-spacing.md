@@ -1,0 +1,1 @@
+- Tighten the sidebar search trigger's right padding so its rounded shortcut badge sits concentrically inside the rounded button.

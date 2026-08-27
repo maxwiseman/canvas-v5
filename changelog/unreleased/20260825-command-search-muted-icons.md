@@ -1,0 +1,1 @@
+- Render Command-K result icons with the muted foreground color so titles remain the primary visual emphasis.

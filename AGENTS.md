@@ -295,10 +295,16 @@ Avoid running broad format/check commands casually when the user has in-progress
 - When the user explicitly asks to create a release, choose the next semantic
   version from the included changes (patch for fixes, minor for backward-
   compatible features, major for breaking changes) unless the user specifies
-  one. Create `changelog/vX.Y.Z.md` with an `## vX.Y.Z` heading and the bullets
-  from the included `changelog/unreleased/` fragments, then remove only those
-  consumed fragments. Confirm the intended changes are committed and do not
-  sweep unrelated or unfinished work into the release.
+  one. If the request is not explicitly scoped and there are other unreleased
+  fragments or completed-looking uncommitted changes, pause before creating the
+  release and ask whether they should be included too; recommend including work
+  that is validated and release-ready. Do not assume unrelated or uncommitted
+  means unfinished. If the user explicitly scopes the release to named changes,
+  honor that scope without asking again. Create `changelog/vX.Y.Z.md` with an
+  `## vX.Y.Z` heading and the bullets from the included
+  `changelog/unreleased/` fragments, then remove only those consumed fragments.
+  Confirm the intended changes are committed, and never include work known to
+  be incomplete or unvalidated without explicit direction.
 - Commit the changelog rollover, create tag `vX.Y.Z` on that exact release
   commit, and push both the commit and tag. Then publish from the verified
   remote tag with
