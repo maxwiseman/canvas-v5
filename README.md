@@ -101,7 +101,7 @@ canvas-v5/
 
 ## Canvas Agent Access
 
-Canvas V5 includes a read-only Streamable HTTP MCP server at `/api/mcp`. It
+Canvas V5 includes a Streamable HTTP MCP server at `/api/mcp`. It
 uses the best available source for each logical Canvas account:
 
 - OAuth or API-token credentials are fetched directly from the server.
@@ -109,7 +109,9 @@ uses the best available source for each logical Canvas account:
 - Both paths use the same validation, normalization, content hashing, and cloud
   cache reconciliation code in `packages/canvas-core`.
 
-After updating the checkout, apply the additive Drizzle schema:
+After updating the checkout, apply the additive Drizzle schema. This now
+includes the OAuth client, consent, token, and signing-key tables used by hosted
+MCP clients:
 
 ```bash
 bun run db:push
@@ -140,8 +142,38 @@ Authorization: Bearer <CANVAS_SYNC_CRON_SECRET>
 refreshes token-backed accounts directly and queues extension jobs for
 session-only accounts.
 
-Signed-in users can open `/settings`, create an MCP bearer token, and configure
-their MCP client with:
+### Hosted ChatGPT and MCP Apps connection
+
+Deploy the web app at a public HTTPS origin, then add this remote MCP server in
+ChatGPT developer mode or another remote MCP client:
+
+```text
+URL: https://your-canvas-v5.example/api/mcp
+Transport: Streamable HTTP
+Authentication: OAuth
+```
+
+Canvas V5 publishes OAuth authorization-server and protected-resource metadata,
+supports dynamic client registration with PKCE, and displays its own sign-in and
+consent screens. The `canvas_show_upcoming_assignments` tool renders a bundled
+MCP App with refresh, pagination, assignment links, host-controlled theming, and
+system dark-mode fallback. The UI uses the standard MCP Apps bridge; ChatGPT
+compatibility metadata is included without making the widget depend on
+`window.openai`.
+
+The same MCP URL can be used by Claude and other clients that support remote MCP
+OAuth. Interactive UI travels with it only when the client implements MCP Apps;
+clients without that extension can still call the normal data tools and receive
+structured results.
+
+To prepare an App Store submission, first deploy and test the production URL in
+ChatGPT developer mode. Store review assets, privacy-policy URLs, and final tool
+descriptions can then be prepared against that verified deployment.
+
+### Personal bearer-token connection
+
+Signed-in users can still open `/settings`, create an MCP bearer token, and
+configure a local or personal MCP client with:
 
 ```text
 URL: https://your-canvas-v5.example/api/mcp
@@ -150,6 +182,6 @@ Transport: Streamable HTTP
 ```
 
 MCP tokens are stored as SHA-256 hashes and are shown only once. The MCP tools
-are read-only and include account, course, assignment, assignment-detail, and
-refresh operations. Canvas access tokens remain encrypted server-side; browser
-session cookies are never uploaded.
+include account, course, assignment, assignment-detail, search, interactive
+assignment overview, and explicit refresh operations. Canvas access tokens
+remain encrypted server-side; browser session cookies are never uploaded.

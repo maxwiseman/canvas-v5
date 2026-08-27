@@ -34,7 +34,11 @@ export default function SignUpForm({
 					name: value.name,
 				},
 				{
-					onSuccess: () => {
+					onSuccess: (context) => {
+						if (context.data.url) {
+							window.location.assign(context.data.url);
+							return;
+						}
 						navigate({
 							to: "/",
 						});

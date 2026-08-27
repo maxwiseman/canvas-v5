@@ -1,4 +1,10 @@
 import { db, PostgresCanvasRepository } from "@canvas-v5/db";
+import assignmentWidgetHtml from "@canvas-v5/mcp-app/assignment-widget.html?raw";
+import {
+	RESOURCE_MIME_TYPE,
+	registerAppResource,
+	registerAppTool,
+} from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
@@ -19,6 +25,7 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_UPCOMING_DAYS = 7;
+const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v1.html";
 const timezoneSchema = z
 	.string()
 	.default("UTC")
@@ -28,8 +35,42 @@ const paginationSchema = {
 	cursor: z.string().optional(),
 };
 
-export function createCanvasMcpServer(userId: string) {
-	const server = new McpServer({ name: "canvas-v5", version: "0.3.0" });
+const upcomingInputSchema = z.object({
+	accountIds: z.array(z.string()).max(50).optional(),
+	courseIds: z.array(z.number().int()).max(100).optional(),
+	dueAfter: z.string().datetime({ offset: true }).optional(),
+	dueBefore: z.string().datetime({ offset: true }).optional(),
+	includeUndated: z.boolean().default(false),
+	includeCompleted: z.boolean().default(false),
+	includeOverdue: z.boolean().default(false),
+	timezone: timezoneSchema,
+	refresh: z.boolean().default(false),
+	...paginationSchema,
+});
+
+interface CanvasMcpContext {
+	userId: string;
+	scopes: string[];
+}
+
+export function createCanvasMcpServer(context: string | CanvasMcpContext) {
+	const { userId, scopes } =
+		typeof context === "string"
+			? { userId: context, scopes: ["canvas:read", "canvas:refresh"] }
+			: context;
+	const server = new McpServer({ name: "canvas-v5", version: "0.4.0" });
+	const readAnnotations = {
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false,
+	};
+	const refreshableAnnotations = {
+		readOnlyHint: false,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false,
+	};
 
 	server.registerTool(
 		"canvas_list_accounts",
@@ -37,7 +78,7 @@ export function createCanvasMcpServer(userId: string) {
 			title: "List Canvas accounts and health",
 			description:
 				"List every connected Canvas account with sync health. Use this to distinguish an empty account from one that is refreshing, unavailable, or needs reauthentication.",
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			annotations: readAnnotations,
 		},
 		async () =>
 			runTool(async () => {
@@ -59,10 +100,11 @@ export function createCanvasMcpServer(userId: string) {
 				accountId: z.string().optional(),
 				refresh: z.boolean().default(false),
 			},
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			annotations: refreshableAnnotations,
 		},
 		async ({ accountId, refresh }) =>
 			runTool(async () => {
+				assertRefreshScope(scopes, refresh);
 				const resolvedAccountId = await resolveAccountId(userId, accountId);
 				const acquisition = await acquireAccount(
 					userId,
@@ -106,10 +148,11 @@ export function createCanvasMcpServer(userId: string) {
 				refresh: z.boolean().default(false),
 				...paginationSchema,
 			},
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			annotations: refreshableAnnotations,
 		},
 		async (input) =>
 			runTool(async () => {
+				assertRefreshScope(scopes, input.refresh);
 				validateTimezone(input.timezone);
 				const resolvedAccountId = await resolveAccountId(
 					userId,
@@ -147,54 +190,43 @@ export function createCanvasMcpServer(userId: string) {
 			title: "List upcoming Canvas assignments",
 			description:
 				"Best default tool for questions like 'what assignments are coming up?' Returns incomplete assignments across all ready accounts for the next 7 days, sorted by effective due date, with course names, submission state, account health, and pagination. Cached read by default.",
-			inputSchema: {
-				accountIds: z.array(z.string()).max(50).optional(),
-				courseIds: z.array(z.number().int()).max(100).optional(),
-				dueAfter: z.string().datetime({ offset: true }).optional(),
-				dueBefore: z.string().datetime({ offset: true }).optional(),
-				includeUndated: z.boolean().default(false),
-				includeCompleted: z.boolean().default(false),
-				includeOverdue: z.boolean().default(false),
-				timezone: timezoneSchema,
-				refresh: z.boolean().default(false),
-				...paginationSchema,
-			},
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			inputSchema: upcomingInputSchema.shape,
+			annotations: refreshableAnnotations,
 		},
 		async (input) =>
 			runTool(async () => {
-				validateTimezone(input.timezone);
-				const selected = await selectAccountHealth(userId, input.accountIds);
-				const acquisition = await Promise.all(
-					selected.map((health) =>
-						acquireAccount(userId, health.account.id, input.refresh),
-					),
-				);
-				const refreshedHealth = await selectAccountHealth(
-					userId,
-					selected.map((health) => health.account.id),
-				);
-				const sources = await loadAssignmentSources(userId, refreshedHealth);
-				const now = new Date();
-				const page = listCompactAssignments(sources, {
-					accountIds: refreshedHealth.map((health) => health.account.id),
-					courseIds: input.courseIds,
-					dueAfter: input.dueAfter ?? now.toISOString(),
-					dueBefore:
-						input.dueBefore ??
-						new Date(
-							now.getTime() + DEFAULT_UPCOMING_DAYS * 24 * 60 * 60 * 1000,
-						).toISOString(),
-					includeUndated: input.includeUndated,
-					includeCompleted: input.includeCompleted,
-					includeOverdue: input.includeOverdue,
-					limit: input.limit,
-					cursor: input.cursor,
-					timezone: input.timezone,
-				});
+				assertRefreshScope(scopes, input.refresh);
+				const result = await listUpcomingAssignments(userId, input);
 				return success(
-					{ accounts: refreshedHealth, ...page, acquisition },
-					`Returned ${page.assignments.length} upcoming incomplete assignment${page.assignments.length === 1 ? "" : "s"}.`,
+					result,
+					`Returned ${result.assignments.length} upcoming incomplete assignment${result.assignments.length === 1 ? "" : "s"}.`,
+				);
+			}),
+	);
+
+	registerAppTool(
+		server,
+		"canvas_show_upcoming_assignments",
+		{
+			title: "Show upcoming Canvas assignments",
+			description:
+				"Display an interactive, date-grouped view of upcoming Canvas assignments. Use this when a visual assignment overview would help the user review or open their work.",
+			inputSchema: upcomingInputSchema.shape,
+			annotations: refreshableAnnotations,
+			_meta: {
+				ui: { resourceUri: ASSIGNMENT_WIDGET_URI },
+				"openai/outputTemplate": ASSIGNMENT_WIDGET_URI,
+				"openai/toolInvocation/invoking": "Loading Canvas assignments…",
+				"openai/toolInvocation/invoked": "Canvas assignments ready",
+			},
+		},
+		async (input) =>
+			runTool(async () => {
+				assertRefreshScope(scopes, input.refresh);
+				const result = await listUpcomingAssignments(userId, input);
+				return success(
+					result,
+					`Displayed ${result.assignments.length} upcoming Canvas assignment${result.assignments.length === 1 ? "" : "s"}.`,
 				);
 			}),
 	);
@@ -211,10 +243,11 @@ export function createCanvasMcpServer(userId: string) {
 				assignmentId: z.number().int(),
 				refresh: z.boolean().default(false),
 			},
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			annotations: refreshableAnnotations,
 		},
 		async ({ accountId, courseId, assignmentId, refresh }) =>
 			runTool(async () => {
+				assertRefreshScope(scopes, refresh);
 				const resolvedAccountId = await resolveAccountId(userId, accountId);
 				const acquisition = await acquireAccount(
 					userId,
@@ -262,10 +295,11 @@ export function createCanvasMcpServer(userId: string) {
 				refresh: z.boolean().default(false),
 				limit: z.number().int().min(1).max(100).default(25),
 			},
-			annotations: { readOnlyHint: true, idempotentHint: true },
+			annotations: refreshableAnnotations,
 		},
 		async ({ query, accountId, courseId, refresh, limit }) =>
 			runTool(async () => {
+				assertRefreshScope(scopes, refresh);
 				const resolvedAccountId = await resolveAccountId(userId, accountId);
 				const acquisition = await acquireAccount(
 					userId,
@@ -343,10 +377,11 @@ export function createCanvasMcpServer(userId: string) {
 				accountId: z.string().optional(),
 				accountIds: z.array(z.string()).max(50).optional(),
 			},
-			annotations: { readOnlyHint: false, idempotentHint: true },
+			annotations: refreshableAnnotations,
 		},
 		async ({ accountId, accountIds }) =>
 			runTool(async () => {
+				assertRefreshScope(scopes, true);
 				const selected = await selectAccountHealth(
 					userId,
 					combineAccountIds(accountId, accountIds),
@@ -383,7 +418,98 @@ export function createCanvasMcpServer(userId: string) {
 			}),
 	);
 
+	registerAppResource(
+		server,
+		"Canvas V5 upcoming assignments",
+		ASSIGNMENT_WIDGET_URI,
+		{
+			description: "Interactive date-grouped Canvas assignment overview.",
+			mimeType: RESOURCE_MIME_TYPE,
+		},
+		async () => ({
+			contents: [
+				{
+					uri: ASSIGNMENT_WIDGET_URI,
+					mimeType: RESOURCE_MIME_TYPE,
+					text: assignmentWidgetHtml,
+					_meta: {
+						ui: {
+							prefersBorder: true,
+							csp: { connectDomains: [], resourceDomains: [] },
+						},
+						"openai/widgetDescription":
+							"An interactive Canvas V5 overview grouped by due date, with refresh, pagination, and links to assignments.",
+						"openai/widgetPrefersBorder": true,
+					},
+				},
+			],
+		}),
+	);
+
 	return server;
+}
+
+async function listUpcomingAssignments(
+	userId: string,
+	input: z.infer<typeof upcomingInputSchema>,
+) {
+	validateTimezone(input.timezone);
+	const selected = await selectAccountHealth(userId, input.accountIds);
+	const acquisition = await Promise.all(
+		selected.map((health) =>
+			acquireAccount(userId, health.account.id, input.refresh),
+		),
+	);
+	const accounts = await selectAccountHealth(
+		userId,
+		selected.map((health) => health.account.id),
+	);
+	const sources = await loadAssignmentSources(userId, accounts);
+	const now = new Date();
+	const dueAfter = input.dueAfter ?? now.toISOString();
+	const dueBefore =
+		input.dueBefore ??
+		new Date(
+			now.getTime() + DEFAULT_UPCOMING_DAYS * 24 * 60 * 60 * 1000,
+		).toISOString();
+	const page = listCompactAssignments(sources, {
+		accountIds: accounts.map((health) => health.account.id),
+		courseIds: input.courseIds,
+		dueAfter,
+		dueBefore,
+		includeUndated: input.includeUndated,
+		includeCompleted: input.includeCompleted,
+		includeOverdue: input.includeOverdue,
+		limit: input.limit,
+		cursor: input.cursor,
+		timezone: input.timezone,
+	});
+	return {
+		accounts,
+		...page,
+		acquisition,
+		view: {
+			timezone: input.timezone,
+			filters: {
+				accountIds: input.accountIds,
+				courseIds: input.courseIds,
+				dueAfter,
+				dueBefore,
+				includeUndated: input.includeUndated,
+				includeCompleted: input.includeCompleted,
+				includeOverdue: input.includeOverdue,
+				limit: input.limit,
+			},
+		},
+	};
+}
+
+function assertRefreshScope(scopes: string[], refresh: boolean) {
+	if (refresh && !scopes.includes("canvas:refresh")) {
+		throw new Error(
+			"The canvas:refresh permission is required to refresh Canvas data.",
+		);
+	}
 }
 
 async function acquireAccount(

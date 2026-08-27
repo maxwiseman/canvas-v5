@@ -32,7 +32,11 @@ export default function SignInForm({
 					password: value.password,
 				},
 				{
-					onSuccess: () => {
+					onSuccess: (context) => {
+						if (context.data.url) {
+							window.location.assign(context.data.url);
+							return;
+						}
 						navigate({
 							to: "/",
 						});

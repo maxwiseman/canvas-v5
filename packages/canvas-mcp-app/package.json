@@ -1,0 +1,27 @@
+{
+	"name": "@canvas-v5/mcp-app",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./assignment-widget.html": "./src/generated/assignment-widget.html"
+	},
+	"scripts": {
+		"build": "vite build",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/ext-apps": "^1.7.0",
+		"@modelcontextprotocol/sdk": "1.29.0",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@canvas-v5/config": "workspace:*",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"@vitejs/plugin-react": "^6.0.1",
+		"typescript": "catalog:",
+		"vite": "^8.0.8",
+		"vite-plugin-singlefile": "^2.3.0"
+	}
+}
