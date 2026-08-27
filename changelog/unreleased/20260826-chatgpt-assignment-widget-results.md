@@ -1,0 +1,1 @@
+- Fix the ChatGPT assignment widget remaining on its loading state by rendering cached assignments promptly and supporting ChatGPT's documented tool-output compatibility bridge.

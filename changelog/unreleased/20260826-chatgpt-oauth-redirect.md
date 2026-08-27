@@ -1,0 +1,1 @@
+- Fix ChatGPT OAuth authorization opening a raw JSON redirect response instead of the Canvas V5 sign-in screen.

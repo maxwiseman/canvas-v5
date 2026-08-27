@@ -25,7 +25,7 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_UPCOMING_DAYS = 7;
-const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v1.html";
+const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v2.html";
 const timezoneSchema = z
 	.string()
 	.default("UTC")
@@ -47,6 +47,7 @@ const upcomingInputSchema = z.object({
 	refresh: z.boolean().default(false),
 	...paginationSchema,
 });
+const upcomingDisplayInputSchema = upcomingInputSchema.omit({ refresh: true });
 
 interface CanvasMcpContext {
 	userId: string;
@@ -210,9 +211,9 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 		{
 			title: "Show upcoming Canvas assignments",
 			description:
-				"Display an interactive, date-grouped view of upcoming Canvas assignments. Use this when a visual assignment overview would help the user review or open their work.",
-			inputSchema: upcomingInputSchema.shape,
-			annotations: refreshableAnnotations,
+				"Display a fast, interactive, date-grouped view of cached upcoming Canvas assignments. Use this when a visual assignment overview would help the user review or open their work. To fetch newer Canvas data, call canvas_refresh first and then call this tool.",
+			inputSchema: upcomingDisplayInputSchema.shape,
+			annotations: readAnnotations,
 			_meta: {
 				ui: { resourceUri: ASSIGNMENT_WIDGET_URI },
 				"openai/outputTemplate": ASSIGNMENT_WIDGET_URI,
@@ -222,8 +223,10 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 		},
 		async (input) =>
 			runTool(async () => {
-				assertRefreshScope(scopes, input.refresh);
-				const result = await listUpcomingAssignments(userId, input);
+				const result = await listUpcomingAssignments(userId, {
+					...input,
+					refresh: false,
+				});
 				return success(
 					result,
 					`Displayed ${result.assignments.length} upcoming Canvas assignment${result.assignments.length === 1 ? "" : "s"}.`,

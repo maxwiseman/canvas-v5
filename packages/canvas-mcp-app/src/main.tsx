@@ -93,14 +93,33 @@ const previewOutput: UpcomingOutput = {
 };
 
 function getOutput(result: CallToolResult | null): UpcomingOutput | null {
-	const output = result?.structuredContent;
-	if (!output || !Array.isArray(output.assignments)) return null;
+	return getStructuredOutput(result?.structuredContent);
+}
+
+function getStructuredOutput(output: unknown): UpcomingOutput | null {
+	if (
+		!output ||
+		typeof output !== "object" ||
+		!("assignments" in output) ||
+		!Array.isArray(output.assignments)
+	)
+		return null;
 	return output as unknown as UpcomingOutput;
+}
+
+type ChatGptBridge = {
+	toolOutput?: unknown;
+};
+
+function getChatGptOutput(): UpcomingOutput | null {
+	const openai = (window as Window & { openai?: ChatGptBridge }).openai;
+	return getStructuredOutput(openai?.toolOutput);
 }
 
 function CanvasAssignmentsApp() {
 	const standalone = window.parent === window;
 	const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
+	const [chatGptOutput, setChatGptOutput] = useState(getChatGptOutput);
 	const [hostContext, setHostContext] = useState<McpUiHostContext>();
 
 	const { app, error } = useApp({
@@ -121,6 +140,14 @@ function CanvasAssignmentsApp() {
 			createdApp.onteardown = async () => ({});
 		},
 	});
+
+	useEffect(() => {
+		if (standalone) return;
+		const updateOutput = () => setChatGptOutput(getChatGptOutput());
+		updateOutput();
+		window.addEventListener("openai:set_globals", updateOutput);
+		return () => window.removeEventListener("openai:set_globals", updateOutput);
+	}, [standalone]);
 
 	useEffect(() => {
 		if (!standalone) return;
@@ -167,7 +194,10 @@ function CanvasAssignmentsApp() {
 				paddingLeft: hostContext?.safeAreaInsets?.left,
 			}}
 		>
-			<AssignmentsView output={getOutput(toolResult)} app={app} />
+			<AssignmentsView
+				output={getOutput(toolResult) ?? chatGptOutput}
+				app={app}
+			/>
 		</div>
 	);
 }
