@@ -2,6 +2,7 @@ import { usePage, useSyncStatus } from "@canvas-v5/canvas-sdk";
 import { Badge } from "@canvas-v5/ui/components/badge";
 import { createFileRoute } from "@tanstack/react-router";
 import { CanvasHTML } from "../../../components/canvas-html";
+import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -52,6 +53,11 @@ function PageRoute() {
 			) : (
 				<CanvasHTML>{page.body ?? undefined}</CanvasHTML>
 			)}
+			<CourseSequenceNavigation
+				assetId={pageUrl}
+				assetType="Page"
+				courseId={courseId}
+			/>
 		</PageWrapper>
 	);
 }

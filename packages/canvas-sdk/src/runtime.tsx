@@ -11,6 +11,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useState,
 	useSyncExternalStore,
 } from "react";
 
@@ -35,6 +36,8 @@ import type {
 	CanvasFile,
 	CanvasModule,
 	CanvasModuleItem,
+	CanvasModuleItemAssetType,
+	CanvasModuleItemSequence,
 	CanvasNotificationPreference,
 	CanvasPage,
 	CanvasPlannerItem,
@@ -1166,6 +1169,22 @@ export class CanvasRuntime {
 		}
 	}
 
+	async getModuleItemSequence(
+		courseId: number,
+		assetType: CanvasModuleItemAssetType,
+		assetId: number | string,
+		signal?: AbortSignal,
+	) {
+		const query = new URLSearchParams({
+			asset_type: assetType,
+			asset_id: String(assetId),
+		});
+		return this.options.canvasTransport.request<CanvasModuleItemSequence>(
+			`/api/v1/courses/${courseId}/module_item_sequence?${query}`,
+			{ signal },
+		);
+	}
+
 	async syncAssignment(courseId: number, assignmentId: number) {
 		this.setScope("assignments", { status: "syncing", pendingJobs: 1 });
 		try {
@@ -1822,6 +1841,53 @@ export function useModules(courseId?: number | string) {
 	return normalizedCourseId === undefined
 		? modules
 		: modules.filter((module) => module.course_id === normalizedCourseId);
+}
+
+export function useModuleItemSequence(
+	courseId: number | string,
+	assetType: CanvasModuleItemAssetType,
+	assetId: number | string,
+) {
+	const runtime = useCanvasRuntime();
+	const [state, setState] = useState<{
+		sequence?: CanvasModuleItemSequence;
+		loading: boolean;
+		error?: string;
+	}>({ loading: true });
+	const normalizedCourseId = Number(courseId);
+
+	useEffect(() => {
+		if (!Number.isFinite(normalizedCourseId)) {
+			setState({ loading: false, error: "Invalid course ID." });
+			return;
+		}
+
+		const controller = new AbortController();
+		setState({ loading: true });
+		void runtime
+			.getModuleItemSequence(
+				normalizedCourseId,
+				assetType,
+				assetId,
+				controller.signal,
+			)
+			.then((sequence) => setState({ loading: false, sequence }))
+			.catch((error) => {
+				if (!controller.signal.aborted) {
+					setState({
+						loading: false,
+						error:
+							error instanceof Error
+								? error.message
+								: "Unable to load course navigation.",
+					});
+				}
+			});
+
+		return () => controller.abort();
+	}, [assetId, assetType, normalizedCourseId, runtime]);
+
+	return state;
 }
 
 export function useAnnouncements(courseId?: number | string) {

@@ -334,6 +334,27 @@ export interface CanvasModuleItem extends Record<string, unknown> {
 	published?: boolean;
 }
 
+export type CanvasModuleItemAssetType =
+	| "ModuleItem"
+	| "File"
+	| "Page"
+	| "Discussion"
+	| "Assignment"
+	| "Quiz"
+	| "ExternalTool";
+
+export interface CanvasModuleItemSequenceNode {
+	prev?: CanvasModuleItem | null;
+	current: CanvasModuleItem;
+	next?: CanvasModuleItem | null;
+	mastery_path?: Record<string, unknown>;
+}
+
+export interface CanvasModuleItemSequence {
+	items: CanvasModuleItemSequenceNode[];
+	modules: Array<Pick<CanvasModule, "id" | "name">>;
+}
+
 export interface CanvasAnnouncement {
 	canvasAccountId?: string;
 	id: number;

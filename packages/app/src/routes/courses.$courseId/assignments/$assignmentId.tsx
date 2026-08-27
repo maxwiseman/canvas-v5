@@ -44,6 +44,7 @@ import {
 import { useEffect, useState } from "react";
 import { CanvasHTML } from "../../../components/canvas-html";
 import { CommentField } from "../../../components/comment-field";
+import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -312,6 +313,11 @@ function AssignmentRoute() {
 					) : null}
 				</div>
 			</div>
+			<CourseSequenceNavigation
+				assetId={assignmentId}
+				assetType="Assignment"
+				courseId={courseId}
+			/>
 		</PageWrapper>
 	);
 }

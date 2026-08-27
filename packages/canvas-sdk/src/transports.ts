@@ -144,6 +144,38 @@ export class MockCanvasTransport implements CanvasTransport {
 		if (path.includes("/users/self/profile")) {
 			return { id: "mock-user", name: "Mock Canvas User" } as T;
 		}
+		const sequenceMatch = path.match(
+			/\/courses\/(?<courseId>\d+)\/module_item_sequence\?(?<query>.+)/,
+		);
+		if (sequenceMatch?.groups) {
+			const courseId = Number(sequenceMatch.groups.courseId);
+			const params = new URLSearchParams(sequenceMatch.groups.query);
+			const assetType = params.get("asset_type") ?? "Assignment";
+			const rawAssetId = params.get("asset_id") ?? "1";
+			const numericAssetId = Number(rawAssetId);
+			const currentId = Number.isFinite(numericAssetId) ? numericAssetId : 1;
+			const item = (id: number, title: string) => ({
+				id,
+				module_id: 1,
+				position: id,
+				title,
+				type: assetType,
+				content_id: id,
+				page_url: assetType === "Page" ? String(id) : undefined,
+				html_url: `https://canvas.example.edu/courses/${courseId}/assignments/${id}`,
+				published: true,
+			});
+			return {
+				items: [
+					{
+						prev: item(currentId - 1, "Previous module item"),
+						current: item(currentId, "Current module item"),
+						next: item(currentId + 1, "Next module item"),
+					},
+				],
+				modules: [{ id: 1, name: "Getting started" }],
+			} as T;
+		}
 		const frontPageMatch = path.match(
 			/\/courses\/(?<courseId>\d+)\/front_page/,
 		);

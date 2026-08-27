@@ -17,6 +17,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LoaderCircle, Reply, Send } from "lucide-react";
 import { useState } from "react";
 import { CanvasHTML } from "../../../components/canvas-html";
+import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -90,6 +91,11 @@ function DiscussionRoute() {
 					/>
 				) : null}
 			</div>
+			<CourseSequenceNavigation
+				assetId={topicId}
+				assetType="Discussion"
+				courseId={courseId}
+			/>
 		</PageWrapper>
 	);
 }

@@ -11,6 +11,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { Clock, ExternalLink, ListChecks, RotateCw } from "lucide-react";
 import { CanvasHTML } from "../../../components/canvas-html";
+import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -110,6 +111,11 @@ function QuizRoute() {
 					</CardContent>
 				</Card>
 			</div>
+			<CourseSequenceNavigation
+				assetId={quizId}
+				assetType="Quiz"
+				courseId={courseId}
+			/>
 		</PageWrapper>
 	);
 }

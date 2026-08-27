@@ -12,6 +12,7 @@ import {
 	PageHeaderTitle,
 	PageWrapper,
 } from "../../components/page-header";
+import { moduleItemLink } from "../../lib/module-item-link";
 
 export const Route = createFileRoute("/courses/$courseId/modules")({
 	component: ModulesRoute,
@@ -151,44 +152,6 @@ function ModuleItemRow({
 			{content}
 		</a>
 	);
-}
-
-function moduleItemLink(courseId: string, item: CanvasModuleItem) {
-	const internalHref = internalModuleItemHref(courseId, item);
-	if (internalHref) {
-		return { href: internalHref, external: false };
-	}
-
-	const rawUrl =
-		item.type === "ExternalUrl" ? item.external_url : item.html_url;
-	if (!rawUrl) return undefined;
-
-	try {
-		const url = new URL(rawUrl);
-		if (url.protocol !== "http:" && url.protocol !== "https:") {
-			return undefined;
-		}
-		if (item.type !== "ExternalUrl") {
-			url.searchParams.set("canvas_v5_native", "1");
-		}
-		return { href: url.toString(), external: true };
-	} catch {
-		return undefined;
-	}
-}
-
-function internalModuleItemHref(courseId: string, item: CanvasModuleItem) {
-	if (item.type === "Assignment" && item.content_id !== undefined) {
-		return `/courses/${encodeURIComponent(courseId)}/assignments/${item.content_id}`;
-	}
-	if (item.type === "Quiz" && item.content_id !== undefined) {
-		return `/courses/${encodeURIComponent(courseId)}/quizzes/${item.content_id}`;
-	}
-	if (item.type === "Page" && item.page_url) {
-		return `/courses/${encodeURIComponent(courseId)}/pages/${encodeURIComponent(item.page_url)}`;
-	}
-
-	return undefined;
 }
 
 function itemTypeLabel(type: string) {
