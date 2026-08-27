@@ -14,7 +14,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-
+import { stableSortByDate, stableSortByLabel } from "./stable-order";
 import { CanvasIndexedDbStore, emptySnapshot } from "./store";
 import type {
 	AssignmentComment,
@@ -1724,7 +1724,16 @@ export function useSyncStatus() {
 }
 
 export function useCourses() {
-	return useCanvasSnapshot().courses;
+	const courses = useCanvasSnapshot().courses;
+	return useMemo(
+		() =>
+			stableSortByLabel(
+				courses,
+				(course) => course.name,
+				(course) => course.id,
+			),
+		[courses],
+	);
 }
 
 export function useCourse(courseId: number | string) {
@@ -1761,11 +1770,23 @@ export function useAssignments(courseId?: number | string) {
 		}
 	}, [normalizedCourseId, runtime]);
 
-	return normalizedCourseId === undefined
-		? assignments
-		: assignments.filter(
-				(assignment) => assignment.course_id === normalizedCourseId,
-			);
+	return useMemo(() => {
+		const visibleAssignments =
+			normalizedCourseId === undefined
+				? assignments
+				: assignments.filter(
+						(assignment) => assignment.course_id === normalizedCourseId,
+					);
+		return stableSortByDate(
+			visibleAssignments,
+			(assignment) => assignment.due_at,
+			"ascending",
+			{
+				getLabel: (assignment) => assignment.name,
+				getId: (assignment) => assignment.id,
+			},
+		);
+	}, [assignments, normalizedCourseId]);
 }
 
 export function useCoursePeople(courseId: number | string) {
@@ -1779,7 +1800,15 @@ export function useCoursePeople(courseId: number | string) {
 		}
 	}, [normalizedCourseId, runtime]);
 
-	return people.filter((person) => person.course_id === normalizedCourseId);
+	return useMemo(
+		() =>
+			stableSortByLabel(
+				people.filter((person) => person.course_id === normalizedCourseId),
+				(person) => person.sortable_name ?? person.name,
+				(person) => person.canvas_user_id,
+			),
+		[normalizedCourseId, people],
+	);
 }
 
 export function useAllCoursePeople() {
@@ -1795,7 +1824,15 @@ export function useAllCoursePeople() {
 			);
 		}
 	}, [courseIds, runtime]);
-	return snapshot.people;
+	return useMemo(
+		() =>
+			stableSortByLabel(
+				snapshot.people,
+				(person) => person.sortable_name ?? person.name,
+				(person) => person.id,
+			),
+		[snapshot.people],
+	);
 }
 
 export function useAssignment(
@@ -1903,11 +1940,23 @@ export function useAnnouncements(courseId?: number | string) {
 			void runtime.syncAnnouncements(normalizedCourseId);
 		}
 	}, [normalizedCourseId, runtime]);
-	return normalizedCourseId === undefined
-		? announcements
-		: announcements.filter(
-				(announcement) => announcement.course_id === normalizedCourseId,
-			);
+	return useMemo(() => {
+		const visibleAnnouncements =
+			normalizedCourseId === undefined
+				? announcements
+				: announcements.filter(
+						(announcement) => announcement.course_id === normalizedCourseId,
+					);
+		return stableSortByDate(
+			visibleAnnouncements,
+			(announcement) => announcement.posted_at,
+			"descending",
+			{
+				getLabel: (announcement) => announcement.title,
+				getId: (announcement) => announcement.id,
+			},
+		);
+	}, [announcements, normalizedCourseId]);
 }
 
 export function usePages(courseId: number | string) {
@@ -1918,7 +1967,19 @@ export function usePages(courseId: number | string) {
 		if (Number.isFinite(normalizedCourseId))
 			void runtime.syncPages(normalizedCourseId);
 	}, [normalizedCourseId, runtime]);
-	return pages.filter((page) => page.course_id === normalizedCourseId);
+	return useMemo(
+		() =>
+			stableSortByDate(
+				pages.filter((page) => page.course_id === normalizedCourseId),
+				(page) => page.created_at,
+				"descending",
+				{
+					getLabel: (page) => page.title,
+					getId: (page) => page.page_id,
+				},
+			),
+		[normalizedCourseId, pages],
+	);
 }
 
 export function usePage(courseId: number | string, pageUrl: string) {
@@ -1943,7 +2004,19 @@ export function useQuizzes(courseId: number | string) {
 		if (Number.isFinite(normalizedCourseId))
 			void runtime.syncQuizzes(normalizedCourseId);
 	}, [normalizedCourseId, runtime]);
-	return quizzes.filter((quiz) => quiz.course_id === normalizedCourseId);
+	return useMemo(
+		() =>
+			stableSortByDate(
+				quizzes.filter((quiz) => quiz.course_id === normalizedCourseId),
+				(quiz) => quiz.due_at,
+				"ascending",
+				{
+					getLabel: (quiz) => quiz.title,
+					getId: (quiz) => quiz.id,
+				},
+			),
+		[normalizedCourseId, quizzes],
+	);
 }
 
 export function useQuiz(courseId: number | string, quizId: number | string) {
@@ -1974,8 +2047,20 @@ export function useDiscussions(courseId: number | string) {
 			void runtime.syncDiscussions(normalizedCourseId);
 		}
 	}, [normalizedCourseId, runtime]);
-	return discussions.filter(
-		(discussion) => discussion.course_id === normalizedCourseId,
+	return useMemo(
+		() =>
+			stableSortByDate(
+				discussions.filter(
+					(discussion) => discussion.course_id === normalizedCourseId,
+				),
+				(discussion) => discussion.posted_at,
+				"descending",
+				{
+					getLabel: (discussion) => discussion.title,
+					getId: (discussion) => discussion.id,
+				},
+			),
+		[discussions, normalizedCourseId],
 	);
 }
 
@@ -2020,7 +2105,19 @@ export function useFiles(courseId: number | string) {
 		if (Number.isFinite(normalizedCourseId))
 			void runtime.syncFiles(normalizedCourseId);
 	}, [normalizedCourseId, runtime]);
-	return files.filter((file) => file.course_id === normalizedCourseId);
+	return useMemo(
+		() =>
+			stableSortByDate(
+				files.filter((file) => file.course_id === normalizedCourseId),
+				(file) => file.created_at,
+				"descending",
+				{
+					getLabel: (file) => file.display_name,
+					getId: (file) => file.id,
+				},
+			),
+		[files, normalizedCourseId],
+	);
 }
 
 export function useCourseTabs(courseId: number | string) {

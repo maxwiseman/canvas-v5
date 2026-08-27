@@ -24,9 +24,7 @@ export const Route = createFileRoute("/courses/$courseId/announcements")({
 
 function AnnouncementsRoute() {
 	const { courseId } = Route.useParams();
-	const announcements = [...useAnnouncements(courseId)].sort(
-		(a, b) => Date.parse(b.posted_at ?? "") - Date.parse(a.posted_at ?? ""),
-	);
+	const announcements = useAnnouncements(courseId);
 	const sync = useSyncStatus().find((state) => state.scope === "announcements");
 
 	return (

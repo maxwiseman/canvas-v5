@@ -86,6 +86,8 @@ export interface CanvasPage extends Record<string, unknown> {
 	url: string;
 	title: string;
 	body?: string | null;
+	created_at?: string;
+	updated_at?: string;
 	published?: boolean;
 	front_page?: boolean;
 	locked_for_user?: boolean;

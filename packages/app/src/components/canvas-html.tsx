@@ -8,8 +8,8 @@ import "katex/dist/katex.min.css";
 import { cn } from "@canvas-v5/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
-import * as ReactKatex from "react-katex";
 import { rehypeAdaptCanvasHtmlColors } from "../lib/adapt-canvas-html-colors";
+import { renderCanvasLatex } from "../lib/canvas-latex";
 import { CanvasFilePreviewDialog } from "./canvas-file-preview";
 
 const CanvasHtmlLinkContext = createContext<string | undefined>(undefined);
@@ -122,11 +122,20 @@ function CanvasHtmlImage({
 	"data-equation-content": latex,
 	...props
 }: ComponentProps<"img"> & { "data-equation-content"?: string }) {
-	return latex ? (
-		<ReactKatex.InlineMath math={latex} />
-	) : (
-		<CanvasImage {...props} />
-	);
+	if (!latex) return <CanvasImage {...props} />;
+
+	try {
+		return (
+			<span
+				className={cn("canvas-equation", props.className)}
+				dangerouslySetInnerHTML={{ __html: renderCanvasLatex(latex) }}
+				style={props.style}
+				title={props.title}
+			/>
+		);
+	} catch {
+		return <CanvasImage {...props} />;
+	}
 }
 
 type ResolvedCanvasHtmlLink =

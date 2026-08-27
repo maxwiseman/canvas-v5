@@ -26,7 +26,7 @@ export const Route = createFileRoute("/courses/$courseId/quizzes/")({
 
 function QuizzesRoute() {
 	const { courseId } = Route.useParams();
-	const quizzes = [...useQuizzes(courseId)].sort(compareQuizzes);
+	const quizzes = useQuizzes(courseId);
 	const sync = useSyncStatus().find((state) => state.scope === "quizzes");
 
 	return (
@@ -80,16 +80,6 @@ function QuizzesRoute() {
 			)}
 		</PageWrapper>
 	);
-}
-
-function compareQuizzes(
-	a: { due_at?: string | null; title: string },
-	b: { due_at?: string | null; title: string },
-) {
-	if (a.due_at && b.due_at) return Date.parse(a.due_at) - Date.parse(b.due_at);
-	if (a.due_at) return -1;
-	if (b.due_at) return 1;
-	return a.title.localeCompare(b.title);
 }
 
 function formatDueDate(value?: string | null) {

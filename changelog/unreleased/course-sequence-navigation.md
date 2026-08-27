@@ -1,1 +1,0 @@
-- Add Previous and Next controls to the bottom of module-backed assignment, page, quiz, and discussion pages.

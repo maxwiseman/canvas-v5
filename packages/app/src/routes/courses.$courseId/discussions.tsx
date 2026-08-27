@@ -25,11 +25,7 @@ export const Route = createFileRoute("/courses/$courseId/discussions")({
 
 function DiscussionsRoute() {
 	const { courseId } = Route.useParams();
-	const discussions = [...useDiscussions(courseId)].sort(
-		(a, b) =>
-			Date.parse(b.last_reply_at ?? b.posted_at ?? "") -
-			Date.parse(a.last_reply_at ?? a.posted_at ?? ""),
-	);
+	const discussions = useDiscussions(courseId);
 	const sync = useSyncStatus().find((state) => state.scope === "discussions");
 
 	return (
@@ -68,7 +64,9 @@ function DiscussionsRoute() {
 									className="self-start"
 									render={
 										<Link
-											params={{ courseId, topicId: String(discussion.id) } as never}
+											params={
+												{ courseId, topicId: String(discussion.id) } as never
+											}
 											to={"/courses/$courseId/discussions/$topicId" as never}
 										/>
 									}

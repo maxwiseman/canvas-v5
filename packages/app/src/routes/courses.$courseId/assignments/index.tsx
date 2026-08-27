@@ -18,16 +18,6 @@ function AssignmentsRoute() {
 
 export function AssignmentsView({ courseId }: { courseId: string }) {
 	const assignments = useAssignments(courseId);
-	const sortedAssignments = [...assignments].sort((a, b) => {
-		if (a.due_at && b.due_at) {
-			return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
-		}
-
-		if (a.due_at) return -1;
-		if (b.due_at) return 1;
-
-		return a.name.localeCompare(b.name);
-	});
 
 	return (
 		<PageWrapper>
@@ -37,7 +27,7 @@ export function AssignmentsView({ courseId }: { courseId: string }) {
 				</PageHeaderContent>
 			</PageHeader>
 			<ul>
-				{sortedAssignments.map((assignment) => (
+				{assignments.map((assignment) => (
 					<li key={assignment.id}>
 						<Link
 							params={{ courseId, assignmentId: assignment.id } as never}

@@ -110,7 +110,7 @@ export function AppSidebar() {
 								<SidebarGroupLabel>Classes</SidebarGroupLabel>
 								<SidebarGroupContent>
 									{courses.map((course) => (
-										<SidebarMenuItem key={course.name}>
+										<SidebarMenuItem key={course.id}>
 											<SidebarMenuButton
 												className="pl-9.5"
 												onClick={() => {

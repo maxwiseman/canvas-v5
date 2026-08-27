@@ -26,9 +26,7 @@ export const Route = createFileRoute("/courses/$courseId/pages/")({
 
 function PagesRoute() {
 	const { courseId } = Route.useParams();
-	const pages = [...usePages(courseId)].sort((a, b) =>
-		a.title.localeCompare(b.title),
-	);
+	const pages = usePages(courseId);
 	const sync = useSyncStatus().find((state) => state.scope === "pages");
 
 	return (
