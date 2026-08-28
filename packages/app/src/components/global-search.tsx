@@ -154,7 +154,9 @@ export function GlobalSearch() {
 	);
 }
 
-function buildSearchItems(snapshot: ReturnType<typeof useCanvasSnapshot>) {
+export function buildSearchItems(
+	snapshot: ReturnType<typeof useCanvasSnapshot>,
+) {
 	const courses = new Map(
 		snapshot.courses.map((course) => [course.id, course]),
 	);

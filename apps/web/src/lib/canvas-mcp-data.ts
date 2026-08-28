@@ -1,6 +1,7 @@
 import type {
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
+	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
 
 export interface CanvasMcpAccount {
@@ -37,6 +38,19 @@ export interface CanvasMcpAssignmentSource {
 	account: CanvasMcpAccount;
 	courses: NormalizedCanvasCourse[];
 	assignments: NormalizedCanvasAssignment[];
+}
+
+export interface CanvasMcpPageSource {
+	account: CanvasMcpAccount;
+	courses: NormalizedCanvasCourse[];
+	resources: NormalizedCanvasResource[];
+}
+
+export interface CanvasMcpPageFilters {
+	accountIds?: string[];
+	courseIds?: number[];
+	limit: number;
+	cursor?: string;
 }
 
 export interface CanvasMcpAssignmentFilters {
@@ -100,6 +114,75 @@ export function listCompactAssignments(
 			nextCursor:
 				nextOffset < assignments.length ? encodeCursor(nextOffset) : null,
 		},
+	};
+}
+
+export function listCompactPages(
+	sources: CanvasMcpPageSource[],
+	filters: CanvasMcpPageFilters,
+) {
+	const accountIds = filters.accountIds ? new Set(filters.accountIds) : null;
+	const courseIds = filters.courseIds ? new Set(filters.courseIds) : null;
+	const pages = sources
+		.filter((source) => !accountIds || accountIds.has(source.account.id))
+		.flatMap((source) => {
+			const courses = new Map(
+				source.courses.map((course) => [course.id, course]),
+			);
+			return source.resources.flatMap((resource) => {
+				if (resource.resourceType !== "page") return [];
+				if (courseIds && !courseIds.has(resource.course_id)) return [];
+				const course = courses.get(resource.course_id);
+				return [
+					{
+						pageUrl: resource.canvasResourceId,
+						title: resource.title,
+						account: {
+							id: source.account.id,
+							label: source.account.label,
+						},
+						course: {
+							id: resource.course_id,
+							name: course?.name ?? `Course ${resource.course_id}`,
+							code: course?.course_code ?? null,
+						},
+						htmlUrl: resource.html_url ?? null,
+						updatedAt: resource.updated_at ?? null,
+						observedAt: resource.observedAt,
+					},
+				];
+			});
+		})
+		.sort(
+			(left, right) =>
+				left.account.label.localeCompare(right.account.label) ||
+				left.course.name.localeCompare(right.course.name) ||
+				left.title.localeCompare(right.title) ||
+				left.pageUrl.localeCompare(right.pageUrl),
+		);
+
+	const offset = decodeCursor(filters.cursor);
+	const page = pages.slice(offset, offset + filters.limit);
+	const nextOffset = offset + page.length;
+	return {
+		pages: page,
+		pageInfo: {
+			hasMore: nextOffset < pages.length,
+			nextCursor: nextOffset < pages.length ? encodeCursor(nextOffset) : null,
+		},
+	};
+}
+
+export function pageDetail(page: NormalizedCanvasResource) {
+	return {
+		pageUrl: page.canvasResourceId,
+		courseId: page.course_id,
+		title: page.title,
+		body: page.body ?? null,
+		htmlUrl: page.html_url ?? null,
+		updatedAt: page.updated_at ?? null,
+		observedAt: page.observedAt,
+		contentHash: page.contentHash,
 	};
 }
 

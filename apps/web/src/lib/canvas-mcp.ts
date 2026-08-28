@@ -11,8 +11,11 @@ import { z } from "zod";
 import {
 	assignmentDetail,
 	type CanvasMcpAssignmentSource,
+	type CanvasMcpPageSource,
 	isValidTimeZone,
 	listCompactAssignments,
+	listCompactPages,
+	pageDetail,
 } from "./canvas-mcp-data";
 import {
 	CanvasSessionRequiredError,
@@ -286,6 +289,101 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 	);
 
 	server.registerTool(
+		"canvas_list_pages",
+		{
+			title: "List Canvas pages",
+			description:
+				"Browse compact Canvas Page summaries for one account. Results include page URL slugs, course details, Canvas links, and cache freshness but omit page bodies; use canvas_get_page for full content. Cached read by default.",
+			inputSchema: {
+				accountId: z.string().optional(),
+				courseId: z.number().int().optional(),
+				courseIds: z.array(z.number().int()).max(100).optional(),
+				refresh: z.boolean().default(false),
+				...paginationSchema,
+			},
+			annotations: refreshableAnnotations,
+		},
+		async (input) =>
+			runTool(async () => {
+				assertRefreshScope(scopes, input.refresh);
+				const resolvedAccountId = await resolveAccountId(
+					userId,
+					input.accountId,
+				);
+				const acquisition = await acquireAccount(
+					userId,
+					resolvedAccountId,
+					input.refresh,
+				);
+				const health = await accountHealth(userId, resolvedAccountId);
+				const sources = await loadPageSources(userId, [health]);
+				const page = listCompactPages(sources, {
+					accountIds: [resolvedAccountId],
+					courseIds: combineCourseIds(input.courseId, input.courseIds),
+					limit: input.limit,
+					cursor: input.cursor,
+				});
+				return success(
+					{ account: health, ...page, acquisition },
+					`Returned ${page.pages.length} compact Canvas Page summar${page.pages.length === 1 ? "y" : "ies"}.`,
+				);
+			}),
+	);
+
+	server.registerTool(
+		"canvas_get_page",
+		{
+			title: "Get Canvas page details",
+			description:
+				"Get one Canvas Page's full cached content after identifying it with canvas_list_pages or canvas_search.",
+			inputSchema: {
+				accountId: z.string().optional(),
+				courseId: z.number().int(),
+				pageUrl: z.string().min(1),
+				refresh: z.boolean().default(false),
+			},
+			annotations: refreshableAnnotations,
+		},
+		async ({ accountId, courseId, pageUrl, refresh }) =>
+			runTool(async () => {
+				assertRefreshScope(scopes, refresh);
+				const resolvedAccountId = await resolveAccountId(userId, accountId);
+				const acquisition = await acquireAccount(
+					userId,
+					resolvedAccountId,
+					refresh,
+				);
+				const repository = new PostgresCanvasRepository(db, userId);
+				const [courses, resources] = await Promise.all([
+					repository.listCourses(resolvedAccountId),
+					repository.listResources(resolvedAccountId, courseId),
+				]);
+				const page = resources.find(
+					(resource) =>
+						resource.resourceType === "page" &&
+						resource.canvasResourceId === pageUrl,
+				);
+				if (!page) throw new Error("Canvas page not found.");
+				const course = courses.find((candidate) => candidate.id === courseId);
+				return success(
+					{
+						accountId: resolvedAccountId,
+						course: course
+							? {
+									id: course.id,
+									name: course.name,
+									code: course.course_code ?? null,
+								}
+							: { id: courseId, name: `Course ${courseId}`, code: null },
+						page: pageDetail(page),
+						acquisition,
+					},
+					`Returned details for ${page.title}.`,
+				);
+			}),
+	);
+
+	server.registerTool(
 		"canvas_search",
 		{
 			title: "Search cached Canvas content",
@@ -538,6 +636,20 @@ async function loadAssignmentSources(
 			account,
 			courses: await repository.listCourses(account.id),
 			assignments: await repository.listAssignments(account.id),
+		})),
+	);
+}
+
+async function loadPageSources(
+	userId: string,
+	health: Awaited<ReturnType<typeof listCanvasAccountHealth>>,
+): Promise<CanvasMcpPageSource[]> {
+	const repository = new PostgresCanvasRepository(db, userId);
+	return Promise.all(
+		health.map(async ({ account }) => ({
+			account,
+			courses: await repository.listCourses(account.id),
+			resources: await repository.listResources(account.id),
 		})),
 	);
 }

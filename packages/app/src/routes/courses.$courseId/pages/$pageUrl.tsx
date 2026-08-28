@@ -5,6 +5,7 @@ import { CanvasHTML } from "../../../components/canvas-html";
 import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
 import {
 	PageHeader,
+	PageHeaderActions,
 	PageHeaderContent,
 	PageHeaderTitle,
 	PageWrapper,
@@ -42,6 +43,14 @@ function PageRoute() {
 						{page.front_page ? <Badge variant="secondary">Home</Badge> : null}
 					</div>
 				</PageHeaderContent>
+				<PageHeaderActions className="ml-auto">
+					<CourseSequenceNavigation
+						assetId={pageUrl}
+						assetType="Page"
+						courseId={courseId}
+						variant="header"
+					/>
+				</PageHeaderActions>
 			</PageHeader>
 			{page.locked_for_user ? (
 				<ResourceEmpty

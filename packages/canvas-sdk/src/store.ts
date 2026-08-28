@@ -22,7 +22,6 @@ import type {
 	CanvasFile,
 	CanvasModule,
 	CanvasNotificationPreference,
-	CanvasPage,
 	CanvasPlannerItem,
 	CanvasQuiz,
 	CanvasRuntimeMode,
@@ -45,7 +44,6 @@ type StoreName =
 	| "modules"
 	| "courseHomes"
 	| "announcements"
-	| "pages"
 	| "quizzes"
 	| "discussions"
 	| "discussionEntries"
@@ -61,6 +59,9 @@ type StoreName =
 	| "syncScopes"
 	| "mutationQueue";
 
+const DATABASE_VERSION = 8;
+const OBSOLETE_STORE_NAMES = ["pages"] as const;
+
 const STORE_NAMES: StoreName[] = [
 	"accounts",
 	"connections",
@@ -72,7 +73,6 @@ const STORE_NAMES: StoreName[] = [
 	"modules",
 	"courseHomes",
 	"announcements",
-	"pages",
 	"quizzes",
 	"discussions",
 	"discussionEntries",
@@ -99,7 +99,6 @@ type StoreRecord =
 	| CanvasModule
 	| CanvasCourseHome
 	| CanvasAnnouncement
-	| CanvasPage
 	| CanvasQuiz
 	| CanvasDiscussionTopic
 	| CanvasDiscussionEntry
@@ -129,7 +128,6 @@ export function emptySnapshot(mode: CanvasRuntimeMode): CanvasRuntimeSnapshot {
 		modules: [],
 		courseHomes: [],
 		announcements: [],
-		pages: [],
 		quizzes: [],
 		discussions: [],
 		discussionEntries: [],
@@ -158,7 +156,6 @@ export function createInitialSyncScopes(): SyncScopeState[] {
 		"modules",
 		"course-home",
 		"announcements",
-		"pages",
 		"quizzes",
 		"discussions",
 		"discussion-entries",
@@ -192,7 +189,6 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			modules,
 			courseHomes,
 			announcements,
-			pages,
 			quizzes,
 			discussions,
 			discussionEntries,
@@ -218,7 +214,6 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			this.getAll<CanvasModule>("modules"),
 			this.getAll<CanvasCourseHome>("courseHomes"),
 			this.getAll<CanvasAnnouncement>("announcements"),
-			this.getAll<CanvasPage>("pages"),
 			this.getAll<CanvasQuiz>("quizzes"),
 			this.getAll<CanvasDiscussionTopic>("discussions"),
 			this.getAll<CanvasDiscussionEntry>("discussionEntries"),
@@ -263,7 +258,6 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			modules,
 			courseHomes,
 			announcements,
-			pages,
 			quizzes,
 			discussions,
 			discussionEntries,
@@ -349,9 +343,14 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			);
 		}
 		this.dbPromise ??= new Promise((resolve, reject) => {
-			const request = indexedDB.open(this.databaseName, 7);
+			const request = indexedDB.open(this.databaseName, DATABASE_VERSION);
 			request.onupgradeneeded = () => {
 				const db = request.result;
+				for (const storeName of OBSOLETE_STORE_NAMES) {
+					if (db.objectStoreNames.contains(storeName)) {
+						db.deleteObjectStore(storeName);
+					}
+				}
 				for (const storeName of STORE_NAMES) {
 					if (!db.objectStoreNames.contains(storeName)) {
 						db.createObjectStore(storeName, {
@@ -360,8 +359,18 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 					}
 				}
 			};
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => reject(request.error);
+			request.onsuccess = () => {
+				const db = request.result;
+				db.onversionchange = () => {
+					db.close();
+					this.dbPromise = undefined;
+				};
+				resolve(db);
+			};
+			request.onerror = () => {
+				this.dbPromise = undefined;
+				reject(request.error);
+			};
 		});
 		return this.dbPromise;
 	}

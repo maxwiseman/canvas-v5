@@ -1,8 +1,9 @@
 import {
 	type CanvasAccountRef,
 	fetchNormalizedAssignments,
-	fetchNormalizedCourseResources,
+	fetchNormalizedCourseSearchContent,
 	fetchNormalizedCourses,
+	normalizeCanvasResource,
 } from "@canvas-v5/canvas-core";
 import {
 	createContext,
@@ -55,6 +56,8 @@ import type {
 	SyncScopeState,
 } from "./types";
 
+const SEARCH_INDEX_VERSION = 5;
+
 export interface CanvasRuntimeOptions {
 	mode: CanvasRuntimeMode;
 	canvasTransport: CanvasTransport;
@@ -68,6 +71,11 @@ export interface CanvasRuntimeOptions {
 export class CanvasRuntime {
 	private listeners = new Set<() => void>();
 	private bootPromise?: Promise<void>;
+	private moduleItemSequenceCache = new Map<string, CanvasModuleItemSequence>();
+	private moduleItemSequenceRequests = new Map<
+		string,
+		Promise<CanvasModuleItemSequence>
+	>();
 	private snapshot: CanvasRuntimeSnapshot;
 	private readonly store: CanvasIndexedDbStore;
 
@@ -304,7 +312,13 @@ export class CanvasRuntime {
 		const lastSyncedAt = searchScope?.lastSyncedAt
 			? new Date(searchScope.lastSyncedAt).getTime()
 			: 0;
-		if (!force && Date.now() - lastSyncedAt < 30 * 60 * 1000) return;
+		if (
+			!force &&
+			searchScope?.indexVersion === SEARCH_INDEX_VERSION &&
+			Date.now() - lastSyncedAt < 30 * 60 * 1000
+		) {
+			return;
+		}
 
 		this.setScope("search", {
 			status: "syncing",
@@ -317,20 +331,14 @@ export class CanvasRuntime {
 			const assignments = [] as CanvasRuntimeSnapshot["assignments"];
 			const resources = [] as CanvasRuntimeSnapshot["resources"];
 			for (const course of this.snapshot.courses) {
-				const [courseAssignments, courseResources] = await Promise.all([
-					fetchNormalizedAssignments(
+				const { assignments: courseAssignments, resources: courseResources } =
+					await fetchNormalizedCourseSearchContent(
 						this.options.canvasTransport,
 						syncAccount,
 						course.id,
 						observedAt,
-					),
-					fetchNormalizedCourseResources(
-						this.options.canvasTransport,
-						syncAccount,
-						course.id,
-						observedAt,
-					),
-				]);
+						[course.syllabus_body],
+					);
 				assignments.push(
 					...courseAssignments.map(
 						(assignment) =>
@@ -360,7 +368,7 @@ export class CanvasRuntime {
 				]);
 			}
 			this.setSnapshot({ ...this.snapshot, assignments, resources });
-			this.finishScope("search");
+			this.finishScope("search", { indexVersion: SEARCH_INDEX_VERSION });
 		} catch (error) {
 			this.failScope(
 				"search",
@@ -641,21 +649,33 @@ export class CanvasRuntime {
 	async syncPages(courseId: number) {
 		this.setScope("pages", { status: "syncing", pendingJobs: 1 });
 		try {
-			const records =
-				await this.options.canvasTransport.paginatedRequest<CanvasPage>(
-					`/api/v1/courses/${courseId}/pages?per_page=100`,
-				);
-			const normalized = records.map((record) => ({
-				...record,
-				id: `${courseId}:${record.url}`,
-				course_id: courseId,
-			}));
-			const pages = [
-				...this.snapshot.pages.filter((page) => page.course_id !== courseId),
-				...normalized,
+			const account = this.getSyncAccount();
+			const observedAt = new Date().toISOString();
+			const { resources: records } = await fetchNormalizedCourseSearchContent(
+				this.options.canvasTransport,
+				account,
+				courseId,
+				observedAt,
+				[
+					this.snapshot.courses.find((course) => course.id === courseId)
+						?.syllabus_body,
+				],
+			);
+			const resources = [
+				...this.snapshot.resources.filter(
+					(resource) => resource.course_id !== courseId,
+				),
+				...records,
 			];
-			this.setSnapshot({ ...this.snapshot, pages });
-			await this.store.replaceAll("pages", pages);
+			this.setSnapshot({ ...this.snapshot, resources });
+			await this.store.applySnapshot({
+				account,
+				scope: "resources",
+				scopeKey: String(courseId),
+				generationId: crypto.randomUUID(),
+				observedAt,
+				records,
+			});
 			this.finishScope("pages");
 		} catch (error) {
 			this.failScope("pages", error, "Unable to sync pages.");
@@ -668,17 +688,21 @@ export class CanvasRuntime {
 			const record = await this.options.canvasTransport.request<CanvasPage>(
 				`/api/v1/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`,
 			);
-			const page = {
-				...record,
-				id: `${courseId}:${record.url}`,
-				course_id: courseId,
-			};
-			const pages = [
-				...this.snapshot.pages.filter((candidate) => candidate.id !== page.id),
-				page,
+			const resource = await normalizeCanvasResource(
+				record,
+				this.getSyncAccount(),
+				courseId,
+				"page",
+				new Date().toISOString(),
+			);
+			const resources = [
+				...this.snapshot.resources.filter(
+					(candidate) => candidate.id !== resource.id,
+				),
+				resource,
 			];
-			this.setSnapshot({ ...this.snapshot, pages });
-			await this.store.replaceAll("pages", pages);
+			this.setSnapshot({ ...this.snapshot, resources });
+			await this.store.put("resources", resource);
 			this.finishScope("pages");
 		} catch (error) {
 			this.failScope("pages", error, "Unable to sync this page.");
@@ -1173,16 +1197,55 @@ export class CanvasRuntime {
 		courseId: number,
 		assetType: CanvasModuleItemAssetType,
 		assetId: number | string,
-		signal?: AbortSignal,
 	) {
+		const cacheKey = moduleItemSequenceCacheKey(courseId, assetType, assetId);
+		const cached = this.moduleItemSequenceCache.get(cacheKey);
+		if (cached) return cached;
+
+		const pending = this.moduleItemSequenceRequests.get(cacheKey);
+		if (pending) return pending;
+
 		const query = new URLSearchParams({
 			asset_type: assetType,
 			asset_id: String(assetId),
 		});
-		return this.options.canvasTransport.request<CanvasModuleItemSequence>(
-			`/api/v1/courses/${courseId}/module_item_sequence?${query}`,
-			{ signal },
+		const request = this.options.canvasTransport
+			.request<CanvasModuleItemSequence>(
+				`/api/v1/courses/${courseId}/module_item_sequence?${query}`,
+			)
+			.then((sequence) => {
+				this.moduleItemSequenceCache.set(cacheKey, sequence);
+				return sequence;
+			})
+			.finally(() => this.moduleItemSequenceRequests.delete(cacheKey));
+		this.moduleItemSequenceRequests.set(cacheKey, request);
+		return request;
+	}
+
+	getCachedModuleItemSequence(
+		courseId: number,
+		assetType: CanvasModuleItemAssetType,
+		assetId: number | string,
+	) {
+		return this.moduleItemSequenceCache.get(
+			moduleItemSequenceCacheKey(courseId, assetType, assetId),
 		);
+	}
+
+	prefetchAdjacentModuleItemSequences(
+		courseId: number,
+		assetType: CanvasModuleItemAssetType,
+		sequence: CanvasModuleItemSequence,
+	) {
+		const node = sequence.items[0];
+		for (const item of [node?.prev, node?.next]) {
+			const assetId = moduleItemAssetId(item, assetType);
+			if (assetId !== undefined) {
+				void this.getModuleItemSequence(courseId, assetType, assetId).catch(
+					() => undefined,
+				);
+			}
+		}
 	}
 
 	async syncAssignment(courseId: number, assignmentId: number) {
@@ -1611,12 +1674,13 @@ export class CanvasRuntime {
 		}
 	}
 
-	private finishScope(scope: SyncScope) {
+	private finishScope(scope: SyncScope, patch: Partial<SyncScopeState> = {}) {
 		this.setScope(scope, {
 			status: "idle",
 			pendingJobs: 0,
 			lastSyncedAt: new Date().toISOString(),
 			error: undefined,
+			...patch,
 		});
 	}
 
@@ -1886,12 +1950,19 @@ export function useModuleItemSequence(
 	assetId: number | string,
 ) {
 	const runtime = useCanvasRuntime();
+	const normalizedCourseId = Number(courseId);
+	const cachedSequence = Number.isFinite(normalizedCourseId)
+		? runtime.getCachedModuleItemSequence(
+				normalizedCourseId,
+				assetType,
+				assetId,
+			)
+		: undefined;
 	const [state, setState] = useState<{
 		sequence?: CanvasModuleItemSequence;
 		loading: boolean;
 		error?: string;
-	}>({ loading: true });
-	const normalizedCourseId = Number(courseId);
+	}>({ sequence: cachedSequence, loading: !cachedSequence });
 
 	useEffect(() => {
 		if (!Number.isFinite(normalizedCourseId)) {
@@ -1900,15 +1971,27 @@ export function useModuleItemSequence(
 		}
 
 		const controller = new AbortController();
-		setState({ loading: true });
+		const cached = runtime.getCachedModuleItemSequence(
+			normalizedCourseId,
+			assetType,
+			assetId,
+		);
+		setState((current) => ({
+			sequence: cached ?? current.sequence,
+			loading: !cached,
+		}));
 		void runtime
-			.getModuleItemSequence(
-				normalizedCourseId,
-				assetType,
-				assetId,
-				controller.signal,
-			)
-			.then((sequence) => setState({ loading: false, sequence }))
+			.getModuleItemSequence(normalizedCourseId, assetType, assetId)
+			.then((sequence) => {
+				if (!controller.signal.aborted) {
+					setState({ loading: false, sequence });
+				}
+				runtime.prefetchAdjacentModuleItemSequences(
+					normalizedCourseId,
+					assetType,
+					sequence,
+				);
+			})
 			.catch((error) => {
 				if (!controller.signal.aborted) {
 					setState({
@@ -1925,6 +2008,24 @@ export function useModuleItemSequence(
 	}, [assetId, assetType, normalizedCourseId, runtime]);
 
 	return state;
+}
+
+function moduleItemSequenceCacheKey(
+	courseId: number,
+	assetType: CanvasModuleItemAssetType,
+	assetId: number | string,
+) {
+	return `${courseId}:${assetType}:${String(assetId)}`;
+}
+
+function moduleItemAssetId(
+	item: CanvasModuleItem | null | undefined,
+	assetType: CanvasModuleItemAssetType,
+) {
+	if (!item) return undefined;
+	if (assetType === "Page") return item.page_url;
+	if (assetType === "ModuleItem") return item.id;
+	return item.content_id;
 }
 
 export function useAnnouncements(courseId?: number | string) {
@@ -1961,39 +2062,92 @@ export function useAnnouncements(courseId?: number | string) {
 
 export function usePages(courseId: number | string) {
 	const runtime = useCanvasRuntime();
-	const pages = useCanvasSnapshot().pages;
+	const resources = useCanvasSnapshot().resources;
 	const normalizedCourseId = Number(courseId);
+	const pages = useMemo(
+		() =>
+			resources.flatMap((resource) => {
+				const page = canvasPageFromResource(resource, false);
+				return page?.course_id === normalizedCourseId ? [page] : [];
+			}),
+		[normalizedCourseId, resources],
+	);
 	useEffect(() => {
-		if (Number.isFinite(normalizedCourseId))
+		if (Number.isFinite(normalizedCourseId) && pages.length === 0)
 			void runtime.syncPages(normalizedCourseId);
-	}, [normalizedCourseId, runtime]);
+	}, [normalizedCourseId, pages.length, runtime]);
 	return useMemo(
 		() =>
-			stableSortByDate(
-				pages.filter((page) => page.course_id === normalizedCourseId),
-				(page) => page.created_at,
-				"descending",
-				{
-					getLabel: (page) => page.title,
-					getId: (page) => page.page_id,
-				},
-			),
-		[normalizedCourseId, pages],
+			stableSortByDate(pages, (page) => page.created_at, "descending", {
+				getLabel: (page) => page.title,
+				getId: (page) => page.page_id,
+			}),
+		[pages],
 	);
 }
 
 export function usePage(courseId: number | string, pageUrl: string) {
 	const runtime = useCanvasRuntime();
-	const pages = useCanvasSnapshot().pages;
+	const resources = useCanvasSnapshot().resources;
 	const normalizedCourseId = Number(courseId);
+	const page = useMemo(
+		() => selectCachedPage(resources, normalizedCourseId, pageUrl),
+		[normalizedCourseId, pageUrl, resources],
+	);
 	useEffect(() => {
-		if (Number.isFinite(normalizedCourseId) && pageUrl) {
+		if (Number.isFinite(normalizedCourseId) && pageUrl && !page) {
 			void runtime.syncPage(normalizedCourseId, pageUrl);
 		}
-	}, [normalizedCourseId, pageUrl, runtime]);
-	return pages.find(
-		(page) => page.course_id === normalizedCourseId && page.url === pageUrl,
+	}, [normalizedCourseId, page, pageUrl, runtime]);
+	return page;
+}
+
+export function selectCachedPage(
+	resources: CanvasRuntimeSnapshot["resources"],
+	courseId: number,
+	pageUrl: string,
+): CanvasPage | undefined {
+	const resource = resources.find(
+		(candidate) =>
+			candidate.course_id === courseId &&
+			candidate.resourceType === "page" &&
+			candidate.canvasResourceId === pageUrl,
 	);
+	return resource ? canvasPageFromResource(resource, true) : undefined;
+}
+
+function canvasPageFromResource(
+	resource: CanvasRuntimeSnapshot["resources"][number],
+	requireBody: boolean,
+): CanvasPage | undefined {
+	if (resource.resourceType !== "page") return undefined;
+	if (requireBody && resource.body == null) return undefined;
+	const metadata = resource.metadata ?? {};
+	const pageId = Number(metadata.page_id);
+	return {
+		canvasAccountId: resource.canvasAccountId,
+		id: `${resource.course_id}:${resource.canvasResourceId}`,
+		course_id: resource.course_id,
+		page_id: Number.isSafeInteger(pageId) ? pageId : 0,
+		url: resource.canvasResourceId,
+		title: resource.title,
+		body: resource.body,
+		html_url: resource.html_url,
+		created_at: optionalMetadataString(metadata.created_at),
+		updated_at: resource.updated_at ?? undefined,
+		published: optionalMetadataBoolean(metadata.published),
+		front_page: optionalMetadataBoolean(metadata.front_page),
+		locked_for_user: optionalMetadataBoolean(metadata.locked_for_user),
+		lock_explanation: optionalMetadataString(metadata.lock_explanation),
+	};
+}
+
+function optionalMetadataString(value: unknown) {
+	return typeof value === "string" ? value : undefined;
+}
+
+function optionalMetadataBoolean(value: unknown) {
+	return typeof value === "boolean" ? value : undefined;
 }
 
 export function useQuizzes(courseId: number | string) {

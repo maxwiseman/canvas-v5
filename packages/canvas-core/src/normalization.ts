@@ -263,6 +263,10 @@ function resourceMetadata(
 		"display_name",
 		"filename",
 		"size",
+		"published",
+		"front_page",
+		"locked_for_user",
+		"lock_explanation",
 	] as const) {
 		if (record[key] !== undefined) metadata[key] = record[key];
 	}

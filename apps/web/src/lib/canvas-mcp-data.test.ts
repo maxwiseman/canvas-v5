@@ -2,9 +2,15 @@ import { describe, expect, test } from "bun:test";
 import type {
 	NormalizedCanvasAssignment,
 	NormalizedCanvasCourse,
+	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
 
-import { assignmentDetail, listCompactAssignments } from "./canvas-mcp-data";
+import {
+	assignmentDetail,
+	listCompactAssignments,
+	listCompactPages,
+	pageDetail,
+} from "./canvas-mcp-data";
 
 const metadata = {
 	canvasAccountId: "account-1",
@@ -99,5 +105,70 @@ describe("Canvas MCP assignment projection", () => {
 		expect(detail.description).toBe("Full instructions");
 		expect(detail.rubric).toEqual([{ id: "criterion-1" }]);
 		expect(JSON.stringify(detail)).not.toContain("secure_params");
+	});
+});
+
+describe("Canvas MCP page projection", () => {
+	const resources: NormalizedCanvasResource[] = [
+		{
+			...metadata,
+			id: "42:page:week-one",
+			course_id: 42,
+			resourceType: "page",
+			canvasResourceId: "week-one",
+			title: "Week One",
+			body: "<p>Read chapter one.</p>",
+			html_url: "https://canvas.example.edu/courses/42/pages/week-one",
+			updated_at: "2026-08-20T12:00:00.000Z",
+		},
+		{
+			...metadata,
+			id: "42:quiz:7",
+			course_id: 42,
+			resourceType: "quiz",
+			canvasResourceId: "7",
+			title: "Week One Quiz",
+			body: "Not a page",
+		},
+	];
+
+	test("lists only pages with course context and paginates", () => {
+		const result = listCompactPages(
+			[
+				{
+					account: {
+						id: "account-1",
+						label: "School",
+						canvasBaseUrl: "https://canvas.example.edu",
+					},
+					courses,
+					resources,
+				},
+			],
+			{ courseIds: [42], limit: 1 },
+		);
+
+		expect(result.pages).toEqual([
+			expect.objectContaining({
+				pageUrl: "week-one",
+				title: "Week One",
+				course: { id: 42, name: "Biology", code: "BIO 101" },
+			}),
+		]);
+		expect(result.pages[0]).not.toHaveProperty("body");
+		expect(result.pageInfo.hasMore).toBe(false);
+	});
+
+	test("returns full page content without arbitrary metadata", () => {
+		const cachedPage = resources[0];
+		if (!cachedPage) throw new Error("Expected a cached Page fixture.");
+		const detail = pageDetail({
+			...cachedPage,
+			metadata: { url: "week-one", unknown: "not exposed" },
+		});
+
+		expect(detail.body).toBe("<p>Read chapter one.</p>");
+		expect(detail.pageUrl).toBe("week-one");
+		expect(JSON.stringify(detail)).not.toContain("not exposed");
 	});
 });

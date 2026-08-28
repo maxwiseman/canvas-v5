@@ -12,10 +12,12 @@ export function CourseSequenceNavigation({
 	assetId,
 	assetType,
 	courseId,
+	variant = "footer",
 }: {
 	assetId: number | string;
 	assetType: CanvasModuleItemAssetType;
 	courseId: string;
+	variant?: "footer" | "header";
 }) {
 	const { loading, sequence } = useModuleItemSequence(
 		courseId,
@@ -35,19 +37,28 @@ export function CourseSequenceNavigation({
 		sequence?.items[0];
 
 	if (!loading && !node) return null;
+	if (variant === "header" && !node) return null;
+
+	const compact = variant === "header";
 
 	return (
 		<nav
-			aria-label="Course module navigation"
-			className="mt-10 flex items-center justify-between gap-3 border-t pt-6"
+			aria-label={compact ? "Page navigation" : "Course module navigation"}
+			className={
+				compact
+					? "flex items-center gap-1"
+					: "mt-10 flex items-center justify-between gap-3 border-t pt-6"
+			}
 		>
 			<SequenceButton
+				compact={compact}
 				courseId={courseId}
 				direction="previous"
 				item={node?.prev}
 				loading={loading}
 			/>
 			<SequenceButton
+				compact={compact}
 				courseId={courseId}
 				direction="next"
 				item={node?.next}
@@ -58,11 +69,13 @@ export function CourseSequenceNavigation({
 }
 
 function SequenceButton({
+	compact,
 	courseId,
 	direction,
 	item,
 	loading,
 }: {
+	compact: boolean;
 	courseId: string;
 	direction: "previous" | "next";
 	item?: CanvasModuleItem | null;
@@ -82,21 +95,22 @@ function SequenceButton({
 			<Button
 				aria-label={label}
 				disabled
+				size={compact ? "icon-xs" : "default"}
 				title={loading ? "Loading…" : undefined}
 				variant="outline"
 			>
-				{direction === "previous" ? icon : null}
-				{label}
-				{direction === "next" ? icon : null}
+				{compact ? icon : direction === "previous" ? icon : null}
+				{compact ? <span className="sr-only">{label}</span> : label}
+				{compact ? null : direction === "next" ? icon : null}
 			</Button>
 		);
 	}
 
 	const content = (
 		<>
-			{direction === "previous" ? icon : null}
-			{label}
-			{direction === "next" ? icon : null}
+			{compact ? icon : direction === "previous" ? icon : null}
+			{compact ? <span className="sr-only">{label}</span> : label}
+			{compact ? null : direction === "next" ? icon : null}
 		</>
 	);
 
@@ -114,6 +128,7 @@ function SequenceButton({
 						<span className="sr-only">{`${label}: ${item?.title}`}</span>
 					</a>
 				}
+				size={compact ? "icon-sm" : "default"}
 				variant="outline"
 			>
 				{content}
@@ -130,6 +145,7 @@ function SequenceButton({
 					to={link.href as never}
 				/>
 			}
+			size={compact ? "icon-sm" : "default"}
 			variant="outline"
 		>
 			{content}

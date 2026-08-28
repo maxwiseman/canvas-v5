@@ -628,6 +628,7 @@ export interface SyncScopeState {
 	scope: SyncScope;
 	status: "idle" | "syncing" | "stale" | "error";
 	lastSyncedAt?: string;
+	indexVersion?: number;
 	error?: string;
 	pendingJobs: number;
 }
@@ -660,7 +661,6 @@ export interface CanvasRuntimeSnapshot {
 	modules: CanvasModule[];
 	courseHomes: CanvasCourseHome[];
 	announcements: CanvasAnnouncement[];
-	pages: CanvasPage[];
 	quizzes: CanvasQuiz[];
 	discussions: CanvasDiscussionTopic[];
 	discussionEntries: CanvasDiscussionEntry[];
