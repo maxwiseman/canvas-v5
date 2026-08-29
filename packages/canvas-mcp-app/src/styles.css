@@ -95,7 +95,7 @@ button {
 
 .shell {
 	display: flex;
-	height: var(--canvas-widget-height, 600px);
+	height: max-content;
 	max-height: var(--canvas-widget-height, 600px);
 	width: 100%;
 	min-height: 0;
