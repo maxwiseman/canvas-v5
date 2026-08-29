@@ -58,6 +58,40 @@ import type {
 
 const SEARCH_INDEX_VERSION = 5;
 
+function calendarContextCodes(snapshot: CanvasRuntimeSnapshot) {
+	const userId =
+		snapshot.canvasAuth.status === "authenticated"
+			? snapshot.canvasAuth.user.id
+			: snapshot.activeAccount?.canvasUserId;
+	return [
+		...(userId ? [`user_${userId}`] : []),
+		...snapshot.courses
+			.map((course) => course.id)
+			.sort((left, right) => left - right)
+			.map((courseId) => `course_${courseId}`),
+	];
+}
+
+function calendarEventsPath(contextCodes: string[]) {
+	const search = new URLSearchParams({
+		type: "event",
+		all_events: "true",
+		per_page: "100",
+	});
+	for (const contextCode of contextCodes) {
+		search.append("context_codes[]", contextCode);
+	}
+	return `/api/v1/calendar_events?${search.toString()}`;
+}
+
+function chunk<T>(values: T[], size: number) {
+	const chunks: T[][] = [];
+	for (let index = 0; index < values.length; index += size) {
+		chunks.push(values.slice(index, index + size));
+	}
+	return chunks;
+}
+
 export interface CanvasRuntimeOptions {
 	mode: CanvasRuntimeMode;
 	canvasTransport: CanvasTransport;
@@ -71,6 +105,7 @@ export interface CanvasRuntimeOptions {
 export class CanvasRuntime {
 	private listeners = new Set<() => void>();
 	private bootPromise?: Promise<void>;
+	private calendarSyncGeneration = 0;
 	private moduleItemSequenceCache = new Map<string, CanvasModuleItemSequence>();
 	private moduleItemSequenceRequests = new Map<
 		string,
@@ -929,29 +964,37 @@ export class CanvasRuntime {
 		}
 	}
 
-	async syncCalendar() {
-		this.setScope("calendar", { status: "syncing", pendingJobs: 2 });
+	async syncCalendar(contextCodes = calendarContextCodes(this.snapshot)) {
+		const generation = ++this.calendarSyncGeneration;
+		const contextGroups = chunk(contextCodes, 10);
+		const requestPaths =
+			contextGroups.length > 0
+				? contextGroups.map((contexts) => calendarEventsPath(contexts))
+				: [calendarEventsPath([])];
+		this.setScope("calendar", {
+			status: "syncing",
+			pendingJobs: requestPaths.length,
+		});
 		try {
-			const [events, assignments] = await Promise.all([
-				this.options.canvasTransport.paginatedRequest<CanvasCalendarItem>(
-					"/api/v1/calendar_events?type=event&all_events=true&per_page=100",
-				),
-				this.options.canvasTransport.paginatedRequest<CanvasCalendarItem>(
-					"/api/v1/calendar_events?type=assignment&all_events=true&per_page=100",
-				),
-			]);
-			const calendarItems = [...events, ...assignments].map(
-				(record, index) => ({
-					...record,
-					id: String(
-						record.id ?? `${record.context_code ?? "calendar"}:${index}`,
+			const eventGroups = await Promise.all(
+				requestPaths.map((path) =>
+					this.options.canvasTransport.paginatedRequest<CanvasCalendarItem>(
+						path,
 					),
-				}),
+				),
 			);
+			const calendarItems = eventGroups.flat().map((record, index) => ({
+				...record,
+				id: String(
+					record.id ?? `${record.context_code ?? "calendar"}:${index}`,
+				),
+			}));
+			if (generation !== this.calendarSyncGeneration) return;
 			this.setSnapshot({ ...this.snapshot, calendarItems });
 			await this.store.replaceAll("calendarItems", calendarItems);
 			this.finishScope("calendar");
 		} catch (error) {
+			if (generation !== this.calendarSyncGeneration) return;
 			this.failScope("calendar", error, "Unable to sync the calendar.");
 		}
 	}
@@ -960,30 +1003,45 @@ export class CanvasRuntime {
 		item: CanvasPlannerItem,
 		markedComplete: boolean,
 	) {
-		const override = item.planner_override?.id
-			? await this.options.canvasTransport.request<
-					CanvasPlannerItem["planner_override"]
-				>(`/api/v1/planner/overrides/${item.planner_override.id}`, {
-					method: "PUT",
-					body: { marked_complete: markedComplete },
-				})
-			: await this.options.canvasTransport.request<
-					CanvasPlannerItem["planner_override"]
-				>("/api/v1/planner/overrides", {
-					method: "POST",
-					body: {
-						plannable_type: item.plannable_type.toLowerCase(),
-						plannable_id: item.plannable_id,
-						marked_complete: markedComplete,
-					},
-				});
-		const plannerItems = this.snapshot.plannerItems.map((candidate) =>
-			candidate.id === item.id
-				? { ...candidate, planner_override: override }
-				: candidate,
-		);
-		this.setSnapshot({ ...this.snapshot, plannerItems });
-		await this.store.replaceAll("plannerItems", plannerItems);
+		const previousOverride = item.planner_override;
+		const optimisticOverride = {
+			...(previousOverride ?? {}),
+			marked_complete: markedComplete,
+		};
+		const applyOverride = (override: CanvasPlannerItem["planner_override"]) => {
+			const plannerItems = this.snapshot.plannerItems.map((candidate) =>
+				candidate.id === item.id
+					? { ...candidate, planner_override: override }
+					: candidate,
+			);
+			this.setSnapshot({ ...this.snapshot, plannerItems });
+			return this.store.replaceAll("plannerItems", plannerItems);
+		};
+
+		await applyOverride(optimisticOverride);
+		try {
+			const override = item.planner_override?.id
+				? await this.options.canvasTransport.request<
+						CanvasPlannerItem["planner_override"]
+					>(`/api/v1/planner/overrides/${item.planner_override.id}`, {
+						method: "PUT",
+						body: { marked_complete: markedComplete },
+					})
+				: await this.options.canvasTransport.request<
+						CanvasPlannerItem["planner_override"]
+					>("/api/v1/planner/overrides", {
+						method: "POST",
+						body: {
+							plannable_type: item.plannable_type.toLowerCase(),
+							plannable_id: item.plannable_id,
+							marked_complete: markedComplete,
+						},
+					});
+			await applyOverride(override ?? optimisticOverride);
+		} catch (error) {
+			await applyOverride(previousOverride);
+			throw error;
+		}
 	}
 
 	async createPlannerNote(input: {
@@ -2345,28 +2403,66 @@ export function useSubmission(
 
 export function usePlannerItems() {
 	const runtime = useCanvasRuntime();
-	const plannerItems = useCanvasSnapshot().plannerItems;
+	const snapshot = useCanvasSnapshot();
+	const plannerItems = snapshot.plannerItems;
+	const activeConnectionId = snapshot.activeAccount?.connectionId;
+	const canvasAuthenticated = snapshot.canvasAuth.status === "authenticated";
 	useEffect(() => {
-		void runtime.syncPlanner();
-	}, [runtime]);
+		if (activeConnectionId || canvasAuthenticated) void runtime.syncPlanner();
+	}, [activeConnectionId, canvasAuthenticated, runtime]);
 	return plannerItems;
 }
 
 export function useCalendarItems() {
 	const runtime = useCanvasRuntime();
-	const calendarItems = useCanvasSnapshot().calendarItems;
+	const snapshot = useCanvasSnapshot();
+	const activeConnectionId = snapshot.activeAccount?.connectionId;
+	const canvasAuthenticated = snapshot.canvasAuth.status === "authenticated";
+	const contextKey = calendarContextCodes(snapshot).join(",");
 	useEffect(() => {
-		void runtime.syncCalendar();
-	}, [runtime]);
-	return calendarItems;
+		if (activeConnectionId || canvasAuthenticated) {
+			void runtime.syncCalendar(contextKey ? contextKey.split(",") : []);
+		}
+	}, [activeConnectionId, canvasAuthenticated, contextKey, runtime]);
+	return useMemo(() => {
+		const events = snapshot.calendarItems.filter(
+			(item) => !item.assignment && !String(item.id).startsWith("assignment_"),
+		);
+		const assignments: CanvasCalendarItem[] = snapshot.assignments.flatMap(
+			(assignment) => {
+				if (!assignment.due_at) return [];
+				return [
+					{
+						id: `assignment_${assignment.course_id}_${assignment.id}`,
+						title: assignment.name,
+						start_at: assignment.due_at,
+						end_at: assignment.due_at,
+						context_code: `course_${assignment.course_id}`,
+						html_url: assignment.html_url,
+						assignment: {
+							id: assignment.id,
+							course_id: assignment.course_id,
+							name: assignment.name,
+							due_at: assignment.due_at,
+						},
+					} satisfies CanvasCalendarItem,
+				];
+			},
+		);
+		return [...events, ...assignments];
+	}, [snapshot.assignments, snapshot.calendarItems]);
 }
 
 export function useConversations() {
 	const runtime = useCanvasRuntime();
-	const conversations = useCanvasSnapshot().conversations;
+	const snapshot = useCanvasSnapshot();
+	const conversations = snapshot.conversations;
+	const activeConnectionId = snapshot.activeAccount?.connectionId;
+	const canvasAuthenticated = snapshot.canvasAuth.status === "authenticated";
 	useEffect(() => {
-		void runtime.syncConversations();
-	}, [runtime]);
+		if (activeConnectionId || canvasAuthenticated)
+			void runtime.syncConversations();
+	}, [activeConnectionId, canvasAuthenticated, runtime]);
 	return conversations;
 }
 

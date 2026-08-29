@@ -95,7 +95,7 @@ function SequenceButton({
 			<Button
 				aria-label={label}
 				disabled
-				size={compact ? "icon-xs" : "default"}
+				size={compact ? "icon-sm" : "default"}
 				title={loading ? "Loading…" : undefined}
 				variant="outline"
 			>

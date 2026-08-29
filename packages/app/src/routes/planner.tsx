@@ -8,6 +8,11 @@ import {
 import { Badge } from "@canvas-v5/ui/components/badge";
 import { Button } from "@canvas-v5/ui/components/button";
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@canvas-v5/ui/components/collapsible";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -36,13 +41,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	CalendarDays,
 	Check,
-	CheckCircle2,
+	ChevronDown,
 	ChevronRight,
+	CircleHelp,
+	ClipboardList,
+	FileText,
+	ListChecks,
 	LoaderCircle,
+	Megaphone,
+	MessageSquareText,
 	Plus,
 	RotateCcw,
+	StickyNote,
+	UsersRound,
 } from "lucide-react";
-import { useState } from "react";
+import { type ComponentType, useState } from "react";
 import {
 	PageHeader,
 	PageHeaderActions,
@@ -66,6 +79,46 @@ function PlannerRoute() {
 		courses.map((course) => [course.id, course.name]),
 	);
 	const runtime = useCanvasRuntime();
+	const [pastOpen, setPastOpen] = useState(false);
+	const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [completionError, setCompletionError] = useState<string>();
+	const startOfToday = localDayStart(new Date()).getTime();
+	const currentItems = plannerItems.filter((item) => {
+		const date = parseItemDate(item);
+		return !date || date.getTime() >= startOfToday;
+	});
+	const pastItems = plannerItems.filter((item) => {
+		const date = parseItemDate(item);
+		return date && date.getTime() < startOfToday;
+	});
+	const currentGroups = groupPlannerItemsByDay(currentItems);
+	const pastGroups = groupPlannerItemsByDay(pastItems).reverse();
+
+	async function toggleComplete(item: PlannerItem) {
+		if (pendingItemIds.has(item.id)) return;
+		setCompletionError(undefined);
+		setPendingItemIds((current) => new Set(current).add(item.id));
+		try {
+			await runtime.setPlannerItemComplete(
+				item,
+				!item.planner_override?.marked_complete,
+			);
+		} catch (cause) {
+			setCompletionError(
+				cause instanceof Error
+					? cause.message
+					: "Unable to update this planner item.",
+			);
+		} finally {
+			setPendingItemIds((current) => {
+				const next = new Set(current);
+				next.delete(item.id);
+				return next;
+			});
+		}
+	}
 
 	return (
 		<PageWrapper className="mx-auto w-full max-w-4xl">
@@ -80,84 +133,60 @@ function PlannerRoute() {
 					<PlannerNoteDialog disabled={!hasConnection} />
 				</PageHeaderActions>
 			</PageHeader>
+			{completionError ? (
+				<p className="mb-4 text-destructive text-sm" role="alert">
+					{completionError}
+				</p>
+			) : null}
 			{plannerItems.length > 0 ? (
-				<ItemGroup>
-					{plannerItems.map((item) => {
-						const href = internalPlannerHref(item);
-						const submissionState =
-							item.submissions === false ? undefined : item.submissions;
-						return (
-							<Item key={item.id} variant="outline">
-								<ItemMedia variant="icon">
-									{item.planner_override?.marked_complete ? (
-										<CheckCircle2 />
-									) : (
-										<CalendarDays />
-									)}
-								</ItemMedia>
-								<ItemContent>
-									<ItemTitle>
-										{href ? (
-											<Link className="hover:underline" to={href as never}>
-												{itemTitle(item)}
-											</Link>
-										) : item.html_url ? (
-											<a
-												className="hover:underline"
-												href={item.html_url}
-												rel="noreferrer noopener"
-												target="_blank"
-											>
-												{itemTitle(item)}
-											</a>
-										) : (
-											itemTitle(item)
-										)}
-									</ItemTitle>
-									<ItemDescription>
-										{courseNames.get(item.course_id ?? -1) ??
-											item.context_name ??
-											"Personal planner"}{" "}
-										· {formatDate(itemDate(item))}
-									</ItemDescription>
-								</ItemContent>
-								<ItemActions>
-									{submissionState?.missing ? (
-										<Badge variant="destructive">Missing</Badge>
-									) : submissionState?.graded ? (
-										<Badge>Graded</Badge>
-									) : item.planner_override?.marked_complete ? (
-										<Badge variant="secondary">Done</Badge>
-									) : null}
-									<Button
-										aria-label={
-											item.planner_override?.marked_complete
-												? "Mark incomplete"
-												: "Mark complete"
-										}
-										onClick={() =>
-											void runtime.setPlannerItemComplete(
-												item,
-												!item.planner_override?.marked_complete,
-											)
-										}
-										size="icon-sm"
-										variant="ghost"
-									>
-										{item.planner_override?.marked_complete ? (
-											<RotateCcw />
-										) : (
-											<Check />
-										)}
-									</Button>
-									{href || item.html_url ? (
-										<ChevronRight className="size-4 text-muted-foreground" />
-									) : null}
-								</ItemActions>
-							</Item>
-						);
-					})}
-				</ItemGroup>
+				<div className="flex flex-col gap-5">
+					{currentGroups.length > 0 ? (
+						<div className="flex flex-col gap-4">
+							{currentGroups.map((group) => (
+								<PlannerDayGroup
+									courseNames={courseNames}
+									group={group}
+									key={group.key}
+									onToggleComplete={toggleComplete}
+									pendingItemIds={pendingItemIds}
+								/>
+							))}
+						</div>
+					) : (
+						<p className="rounded-2xl border border-dashed px-4 py-8 text-center text-muted-foreground text-sm">
+							Nothing scheduled for today or later.
+						</p>
+					)}
+					{pastItems.length > 0 ? (
+						<Collapsible onOpenChange={setPastOpen} open={pastOpen}>
+							<CollapsibleTrigger
+								render={
+									<Button className="w-full justify-between" variant="ghost" />
+								}
+							>
+								<span>Earlier · {pastItems.length}</span>
+								<ChevronDown
+									className={
+										pastOpen
+											? "rotate-180 transition-transform"
+											: "transition-transform"
+									}
+								/>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="mt-4 flex flex-col gap-4">
+								{pastGroups.map((group) => (
+									<PlannerDayGroup
+										courseNames={courseNames}
+										group={group}
+										key={group.key}
+										onToggleComplete={toggleComplete}
+										pendingItemIds={pendingItemIds}
+									/>
+								))}
+							</CollapsibleContent>
+						</Collapsible>
+					) : null}
+				</div>
 			) : (
 				<ResourceEmpty
 					description={
@@ -268,6 +297,126 @@ function PlannerNoteDialog({ disabled }: { disabled: boolean }) {
 }
 
 type PlannerItem = ReturnType<typeof usePlannerItems>[number];
+type PlannerDayGroup = {
+	key: string;
+	date?: Date;
+	items: PlannerItem[];
+};
+
+function PlannerDayGroup({
+	group,
+	courseNames,
+	pendingItemIds,
+	onToggleComplete,
+}: {
+	group: PlannerDayGroup;
+	courseNames: Map<number, string>;
+	pendingItemIds: Set<string>;
+	onToggleComplete: (item: PlannerItem) => Promise<void>;
+}) {
+	return (
+		<section>
+			<div className="sticky top-0 z-10 -mx-1 mb-2 bg-background/95 px-1 py-2 backdrop-blur">
+				<h2 className="font-medium text-muted-foreground text-sm">
+					{formatDayHeader(group.date)}
+				</h2>
+			</div>
+			<ItemGroup>
+				{group.items.map((item) => (
+					<PlannerItemRow
+						courseName={
+							courseNames.get(item.course_id ?? -1) ??
+							item.context_name ??
+							"Personal planner"
+						}
+						item={item}
+						key={item.id}
+						onToggleComplete={onToggleComplete}
+						pending={pendingItemIds.has(item.id)}
+					/>
+				))}
+			</ItemGroup>
+		</section>
+	);
+}
+
+function PlannerItemRow({
+	item,
+	courseName,
+	pending,
+	onToggleComplete,
+}: {
+	item: PlannerItem;
+	courseName: string;
+	pending: boolean;
+	onToggleComplete: (item: PlannerItem) => Promise<void>;
+}) {
+	const href = internalPlannerHref(item);
+	const submissionState =
+		item.submissions === false ? undefined : item.submissions;
+	const Icon = plannerItemIcon(item.plannable_type);
+	return (
+		<Item variant="outline">
+			<ItemMedia variant="icon">
+				<Icon aria-label={plannerTypeLabel(item.plannable_type)} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					{href ? (
+						<Link className="hover:underline" to={href as never}>
+							{itemTitle(item)}
+						</Link>
+					) : item.html_url ? (
+						<a
+							className="hover:underline"
+							href={item.html_url}
+							rel="noreferrer noopener"
+							target="_blank"
+						>
+							{itemTitle(item)}
+						</a>
+					) : (
+						itemTitle(item)
+					)}
+				</ItemTitle>
+				<ItemDescription>
+					{courseName} · {formatItemTime(itemDate(item))}
+				</ItemDescription>
+			</ItemContent>
+			<ItemActions>
+				{submissionState?.missing ? (
+					<Badge variant="destructive">Missing</Badge>
+				) : submissionState?.graded ? (
+					<Badge>Graded</Badge>
+				) : item.planner_override?.marked_complete ? (
+					<Badge variant="secondary">Done</Badge>
+				) : null}
+				<Button
+					aria-label={
+						item.planner_override?.marked_complete
+							? "Mark incomplete"
+							: "Mark complete"
+					}
+					disabled={pending}
+					onClick={() => void onToggleComplete(item)}
+					size="icon-sm"
+					variant="ghost"
+				>
+					{pending ? (
+						<LoaderCircle className="animate-spin" />
+					) : item.planner_override?.marked_complete ? (
+						<RotateCcw />
+					) : (
+						<Check />
+					)}
+				</Button>
+				{href || item.html_url ? (
+					<ChevronRight className="size-4 text-muted-foreground" />
+				) : null}
+			</ItemActions>
+		</Item>
+	);
+}
 
 function itemTitle(item: PlannerItem) {
 	return (
@@ -286,15 +435,88 @@ function itemDate(item: PlannerItem) {
 	);
 }
 
-function formatDate(value?: string | null) {
-	if (!value) return "No date";
+function parseItemDate(item: PlannerItem) {
+	const value = itemDate(item);
+	if (!value) return undefined;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function localDayStart(date: Date) {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function groupPlannerItemsByDay(items: PlannerItem[]) {
+	const groups = new Map<string, PlannerDayGroup>();
+	for (const item of items) {
+		const date = parseItemDate(item);
+		const key = date
+			? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+			: "undated";
+		const group = groups.get(key) ?? { key, date, items: [] };
+		group.items.push(item);
+		groups.set(key, group);
+	}
+	return [...groups.values()];
+}
+
+function formatDayHeader(date?: Date) {
+	if (!date) return "No date";
+	const today = localDayStart(new Date());
+	const day = localDayStart(date);
+	const difference = Math.round(
+		(day.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+	);
+	const label =
+		difference === 0 ? "Today" : difference === 1 ? "Tomorrow" : undefined;
+	const formatted = new Intl.DateTimeFormat(undefined, {
+		weekday: "long",
+		month: "long",
+		day: "numeric",
+	}).format(date);
+	return label ? `${label} · ${formatted}` : formatted;
+}
+
+function formatItemTime(value?: string | null) {
+	if (!value) return "No time";
 	const date = new Date(value);
 	return Number.isNaN(date.getTime())
 		? value
 		: new Intl.DateTimeFormat(undefined, {
-				dateStyle: "medium",
-				timeStyle: "short",
+				hour: "numeric",
+				minute: "2-digit",
 			}).format(date);
+}
+
+function plannerTypeLabel(type: string) {
+	return type.replaceAll("_", " ");
+}
+
+function plannerItemIcon(
+	type: string,
+): ComponentType<{ "aria-label"?: string }> {
+	switch (type.toLowerCase()) {
+		case "assignment":
+		case "sub_assignment":
+			return ClipboardList;
+		case "quiz":
+		case "assessment_request":
+			return CircleHelp;
+		case "discussion_topic":
+			return MessageSquareText;
+		case "announcement":
+			return Megaphone;
+		case "planner_note":
+			return StickyNote;
+		case "wiki_page":
+			return FileText;
+		case "calendar_event":
+			return CalendarDays;
+		case "peer_review_sub_assignment":
+			return UsersRound;
+		default:
+			return ListChecks;
+	}
 }
 
 function internalPlannerHref(item: PlannerItem) {

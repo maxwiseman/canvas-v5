@@ -398,8 +398,17 @@ export interface CanvasCalendarItem {
 	title: string;
 	start_at?: string | null;
 	end_at?: string | null;
+	all_day?: boolean;
+	all_day_date?: string | null;
 	context_code?: string;
+	context_name?: string;
 	html_url?: string;
+	assignment?: {
+		id?: number;
+		course_id?: number;
+		name?: string;
+		due_at?: string | null;
+	};
 }
 
 export interface CanvasSubmissionComment {

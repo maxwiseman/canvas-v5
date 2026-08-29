@@ -119,6 +119,8 @@ type ChatGptBridge = {
 	toolOutput?: unknown;
 };
 
+const WIDGET_HEIGHT = 600;
+
 function getChatGptOutput(): UpcomingOutput | null {
 	const openai = (window as Window & { openai?: ChatGptBridge }).openai;
 	return getStructuredOutput(openai?.toolOutput);
@@ -133,9 +135,9 @@ function getChatGptMaxHeight(): number | undefined {
 
 function getHostMaxHeight(context: McpUiHostContext | undefined) {
 	const dimensions = context?.containerDimensions;
-	if (!dimensions) return undefined;
-	if ("height" in dimensions) return dimensions.height;
-	return dimensions.maxHeight;
+	return dimensions && "maxHeight" in dimensions
+		? dimensions.maxHeight
+		: undefined;
 }
 
 function CanvasAssignmentsApp() {
@@ -212,26 +214,24 @@ function CanvasAssignmentsApp() {
 			/>
 		);
 
-	const safeVerticalInset =
-		(hostContext?.safeAreaInsets?.top ?? 0) +
-		(hostContext?.safeAreaInsets?.bottom ?? 0);
-	const widgetMaxHeight = Math.max(
+	const safeTopInset = hostContext?.safeAreaInsets?.top ?? 0;
+	const widgetHeight = Math.max(
 		0,
 		Math.min(
-			600,
+			WIDGET_HEIGHT,
 			getHostMaxHeight(hostContext) ?? Number.POSITIVE_INFINITY,
 			chatGptMaxHeight ?? Number.POSITIVE_INFINITY,
-		) - safeVerticalInset,
+		) - safeTopInset,
 	);
 
 	return (
 		<div
 			style={
 				{
-					"--canvas-widget-max-height": `${widgetMaxHeight}px`,
-					paddingTop: hostContext?.safeAreaInsets?.top,
+					"--canvas-widget-height": `${widgetHeight}px`,
+					"--canvas-widget-safe-bottom": `${hostContext?.safeAreaInsets?.bottom ?? 0}px`,
+					paddingTop: safeTopInset,
 					paddingRight: hostContext?.safeAreaInsets?.right,
-					paddingBottom: hostContext?.safeAreaInsets?.bottom,
 					paddingLeft: hostContext?.safeAreaInsets?.left,
 				} as CSSProperties
 			}

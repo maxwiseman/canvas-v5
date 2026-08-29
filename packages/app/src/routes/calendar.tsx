@@ -4,10 +4,12 @@ import {
 	useCourses,
 	useSyncStatus,
 } from "@canvas-v5/canvas-sdk";
-import { Badge } from "@canvas-v5/ui/components/badge";
-import { Card, CardContent } from "@canvas-v5/ui/components/card";
+import { EventCalendar } from "@canvas-v5/ui/components/reui/event-calendar/event-calendar";
+import { EventCalendarContent } from "@canvas-v5/ui/components/reui/event-calendar/event-calendar-content";
+import { EventCalendarNav } from "@canvas-v5/ui/components/reui/event-calendar/event-calendar-nav";
+import type { CalendarEvent } from "@canvas-v5/ui/components/reui/event-calendar/event-calendar-types";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays } from "lucide-react";
+import { useMemo } from "react";
 import {
 	PageHeader,
 	PageHeaderContent,
@@ -19,20 +21,39 @@ import { ResourceEmpty } from "../components/resource-empty";
 
 export const Route = createFileRoute("/calendar")({ component: CalendarRoute });
 
+const calendarViews = ["month", "week", "day", "agenda"] as const;
+const readOnlyInteractions = {
+	drag: false,
+	resize: false,
+	selectSlot: false,
+} as const;
+
 function CalendarRoute() {
 	const hasConnection = useCanvasSnapshot().accounts.length > 0;
-	const items = [...useCalendarItems()].sort(
-		(a, b) => Date.parse(a.start_at ?? "") - Date.parse(b.start_at ?? ""),
-	);
+	const items = useCalendarItems();
 	const courses = useCourses();
 	const sync = useSyncStatus().find((state) => state.scope === "calendar");
-	const courseNames = new Map(
-		courses.map((course) => [`course_${course.id}`, course.name]),
+	const courseNames = useMemo(
+		() =>
+			new Map(courses.map((course) => [`course_${course.id}`, course.name])),
+		[courses],
 	);
-	const groups = groupByDay(items);
+	const events = useMemo(
+		() =>
+			items.flatMap((item) => {
+				const event = toCalendarEvent(
+					item,
+					courseNames.get(item.context_code ?? "") ??
+						item.context_name ??
+						"Canvas",
+				);
+				return event ? [event] : [];
+			}),
+		[courseNames, items],
+	);
 
 	return (
-		<PageWrapper className="mx-auto w-full max-w-4xl">
+		<PageWrapper className="mx-auto w-full max-w-7xl">
 			<PageHeader>
 				<PageHeaderContent>
 					<PageHeaderTitle>Calendar</PageHeaderTitle>
@@ -41,43 +62,25 @@ function CalendarRoute() {
 					</PageHeaderSubtitle>
 				</PageHeaderContent>
 			</PageHeader>
-			{groups.length > 0 ? (
-				<div className="flex flex-col gap-6">
-					{groups.map(([date, dayItems]) => (
-						<section key={date}>
-							<h2 className="mb-3 font-medium text-sm">{formatDay(date)}</h2>
-							<Card size="sm">
-								<CardContent className="flex flex-col gap-1 px-2">
-									{dayItems.map((item) => (
-										<a
-											className="flex items-center gap-3 rounded-2xl px-3 py-3 hover:bg-muted/50"
-											href={item.html_url}
-											key={item.id}
-											rel="noreferrer noopener"
-											target={item.html_url ? "_blank" : undefined}
-										>
-											<div className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-												<CalendarDays className="size-4" />
-											</div>
-											<div className="min-w-0 flex-1">
-												<div className="truncate font-medium">{item.title}</div>
-												<div className="text-muted-foreground text-sm">
-													{courseNames.get(item.context_code ?? "") ?? "Canvas"}{" "}
-													· {formatTime(item.start_at)}
-												</div>
-											</div>
-											{item.end_at ? (
-												<Badge variant="outline">
-													{formatTime(item.end_at)}
-												</Badge>
-											) : null}
-										</a>
-									))}
-								</CardContent>
-							</Card>
-						</section>
-					))}
-				</div>
+			{events.length > 0 ? (
+				<EventCalendar<CalendarEventData>
+					className="h-[calc(100svh-10rem)] min-h-[34rem] overflow-hidden rounded-2xl border bg-card"
+					defaultView="month"
+					eventTooltip
+					events={events}
+					interactions={readOnlyInteractions}
+					loading={sync?.status === "syncing"}
+					onEventClick={(occurrence) => {
+						const url = occurrence.event.data?.htmlUrl;
+						if (url) globalThis.open(url, "_blank", "noopener,noreferrer");
+					}}
+					offDays
+					scrollMode="contained"
+					views={[...calendarViews]}
+				>
+					<EventCalendarNav />
+					<EventCalendarContent />
+				</EventCalendar>
 			) : (
 				<ResourceEmpty
 					description={
@@ -96,32 +99,78 @@ function CalendarRoute() {
 	);
 }
 
-type CalendarItem = ReturnType<typeof useCalendarItems>[number];
-function groupByDay(items: CalendarItem[]) {
-	const groups = new Map<string, CalendarItem[]>();
-	for (const item of items) {
-		const date = item.start_at?.slice(0, 10) ?? "No date";
-		groups.set(date, [...(groups.get(date) ?? []), item]);
-	}
-	return [...groups.entries()];
+type CanvasCalendarItem = ReturnType<typeof useCalendarItems>[number];
+type CalendarEventData = {
+	htmlUrl?: string;
+	contextName: string;
+	kind: "assignment" | "event";
+};
+
+function toCalendarEvent(
+	item: CanvasCalendarItem,
+	contextName: string,
+): CalendarEvent<CalendarEventData> | undefined {
+	const allDay = Boolean(item.all_day || item.all_day_date);
+	const start = allDay
+		? (parseLocalDate(item.all_day_date) ?? parseDate(item.start_at))
+		: parseDate(item.start_at);
+	if (!start) return undefined;
+
+	const parsedEnd = parseDate(item.end_at);
+	const end = allDay
+		? allDayEnd(start, parsedEnd)
+		: parsedEnd && parsedEnd > start
+			? parsedEnd
+			: new Date(start.getTime() + 30 * 60 * 1000);
+	const kind =
+		item.assignment || String(item.id).startsWith("assignment_")
+			? "assignment"
+			: "event";
+
+	return {
+		id: String(item.id),
+		title: item.title,
+		start,
+		end,
+		allDay,
+		color: calendarColor(item.context_code),
+		readOnly: true,
+		data: {
+			htmlUrl: item.html_url,
+			contextName,
+			kind,
+		},
+	};
 }
-function formatDay(value: string) {
-	const date = new Date(`${value}T12:00:00`);
-	return Number.isNaN(date.getTime())
-		? value
-		: new Intl.DateTimeFormat(undefined, {
-				weekday: "long",
-				month: "long",
-				day: "numeric",
-			}).format(date);
-}
-function formatTime(value?: string | null) {
-	if (!value) return "All day";
+
+function parseDate(value?: string | null) {
+	if (!value) return undefined;
 	const date = new Date(value);
-	return Number.isNaN(date.getTime())
-		? value
-		: new Intl.DateTimeFormat(undefined, {
-				hour: "numeric",
-				minute: "2-digit",
-			}).format(date);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseLocalDate(value?: string | null) {
+	if (!value) return undefined;
+	const [year, month, day] = value.split("-").map(Number);
+	if (!year || !month || !day) return undefined;
+	return new Date(year, month - 1, day);
+}
+
+function allDayEnd(start: Date, candidate?: Date) {
+	const duration = candidate
+		? Math.ceil((candidate.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+		: 1;
+	return new Date(
+		start.getFullYear(),
+		start.getMonth(),
+		start.getDate() + Math.max(1, duration),
+	);
+}
+
+function calendarColor(contextCode?: string) {
+	let hash = 0;
+	for (const character of contextCode ?? "canvas") {
+		hash = (hash * 31 + character.charCodeAt(0)) | 0;
+	}
+	return `var(--chart-${(Math.abs(hash) % 5) + 1})`;
 }

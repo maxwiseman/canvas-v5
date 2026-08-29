@@ -66,6 +66,12 @@
 			}
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["packages/ui/src/components/reui/**"],
+			"linter": { "enabled": false }
+		}
+	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"

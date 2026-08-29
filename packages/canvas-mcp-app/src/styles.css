@@ -78,14 +78,30 @@ button {
 	font: inherit;
 }
 
+@property --canvas-scroll-fade-top {
+	syntax: "<length-percentage>";
+	inherits: false;
+	initial-value: 0px;
+}
+
+@keyframes canvas-scroll-fade-reveal-top {
+	from {
+		--canvas-scroll-fade-top: 0px;
+	}
+	to {
+		--canvas-scroll-fade-top: 18px;
+	}
+}
+
 .shell {
 	display: flex;
-	max-height: var(--canvas-widget-max-height, 600px);
+	height: var(--canvas-widget-height, 600px);
+	max-height: var(--canvas-widget-height, 600px);
 	width: 100%;
 	min-height: 0;
 	flex-direction: column;
 	overflow: hidden;
-	padding: 16px;
+	padding: 16px 16px 0;
 	background: transparent;
 }
 
@@ -158,8 +174,29 @@ h1 {
 	margin-top: 20px;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	padding-right: 5px;
+	padding: 0 5px calc(16px + var(--canvas-widget-safe-bottom, 0px)) 0;
 	scrollbar-gutter: stable;
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 var(--canvas-scroll-fade-top),
+		#000 100%
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 var(--canvas-scroll-fade-top),
+		#000 100%
+	);
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+@supports (animation-timeline: scroll()) {
+	.scrollRegion {
+		animation: canvas-scroll-fade-reveal-top 1ms ease-in-out both;
+		animation-range: 0 96px;
+		animation-timeline: scroll(self y);
+	}
 }
 .scrollRegion:focus-visible {
 	outline: 2px solid var(--color-border-primary, rgba(0, 0, 0, 0.18));
@@ -321,7 +358,7 @@ h1 {
 
 @media (max-width: 520px) {
 	.shell {
-		padding: 14px;
+		padding: 14px 14px 0;
 	}
 	.assignment {
 		grid-template-columns: minmax(0, 1fr) 12px;

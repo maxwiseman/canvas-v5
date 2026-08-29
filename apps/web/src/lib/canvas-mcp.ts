@@ -28,7 +28,7 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_UPCOMING_DAYS = 7;
-const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v3.html";
+const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v4.html";
 const timezoneSchema = z
 	.string()
 	.default("UTC")
