@@ -4,6 +4,7 @@ import type {
 	CanvasSyncRepository,
 	CanvasSyncResult,
 	NormalizedCanvasAssignment,
+	NormalizedCanvasCalendarEvent,
 	NormalizedCanvasCourse,
 	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
@@ -12,6 +13,7 @@ import { and, asc, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { CanvasDb } from "./index";
 import {
 	canvasCachedAssignment,
+	canvasCachedCalendarEvent,
 	canvasCachedCourse,
 	canvasCachedResource,
 	canvasSyncState,
@@ -34,9 +36,13 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 			await this.applyAssignments(
 				batch as unknown as CanvasSyncBatch<NormalizedCanvasAssignment>,
 			);
-		} else {
+		} else if (batch.scope === "resources") {
 			await this.applyResources(
 				batch as unknown as CanvasSyncBatch<NormalizedCanvasResource>,
+			);
+		} else {
+			await this.applyCalendarEvents(
+				batch as unknown as CanvasSyncBatch<NormalizedCanvasCalendarEvent>,
 			);
 		}
 
@@ -122,6 +128,21 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 				asc(canvasCachedResource.resourceType),
 				asc(canvasCachedResource.canvasResourceId),
 			);
+		return rows.map((row) => row.payload);
+	}
+
+	async listCalendarEvents(canvasIdentityId: string) {
+		const rows = await this.database
+			.select({ payload: canvasCachedCalendarEvent.payload })
+			.from(canvasCachedCalendarEvent)
+			.where(
+				and(
+					eq(canvasCachedCalendarEvent.userId, this.userId),
+					eq(canvasCachedCalendarEvent.canvasIdentityId, canvasIdentityId),
+					isNull(canvasCachedCalendarEvent.deletedAt),
+				),
+			)
+			.orderBy(asc(canvasCachedCalendarEvent.canvasEventId));
 		return rows.map((row) => row.payload);
 	}
 
@@ -303,6 +324,58 @@ export class PostgresCanvasRepository implements CanvasSyncRepository {
 				setWhere: lte(canvasCachedResource.observedAt, observedAt),
 			});
 		await this.database.batch([upsertResources, expireMissing, updateState]);
+	}
+
+	private async applyCalendarEvents(
+		batch: CanvasSyncBatch<NormalizedCanvasCalendarEvent>,
+	) {
+		const observedAt = new Date(batch.observedAt);
+		const expireMissing = this.database
+			.update(canvasCachedCalendarEvent)
+			.set({ deletedAt: observedAt })
+			.where(
+				and(
+					eq(canvasCachedCalendarEvent.canvasIdentityId, batch.account.id),
+					ne(canvasCachedCalendarEvent.generationId, batch.generationId),
+					lte(canvasCachedCalendarEvent.observedAt, observedAt),
+					isNull(canvasCachedCalendarEvent.deletedAt),
+				),
+			);
+		const updateState = this.syncStateQuery(batch, observedAt);
+		if (batch.records.length === 0) {
+			await this.database.batch([expireMissing, updateState]);
+			return;
+		}
+		const upsertEvents = this.database
+			.insert(canvasCachedCalendarEvent)
+			.values(
+				batch.records.map((event) => ({
+					id: `${batch.account.id}:${event.id}`,
+					userId: this.userId,
+					canvasIdentityId: batch.account.id,
+					canvasEventId: event.id,
+					payload: event,
+					contentHash: event.contentHash,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				})),
+			)
+			.onConflictDoUpdate({
+				target: [
+					canvasCachedCalendarEvent.canvasIdentityId,
+					canvasCachedCalendarEvent.canvasEventId,
+				],
+				set: {
+					payload: sql`excluded.payload`,
+					contentHash: sql`excluded.content_hash`,
+					generationId: batch.generationId,
+					observedAt,
+					deletedAt: null,
+				},
+				setWhere: lte(canvasCachedCalendarEvent.observedAt, observedAt),
+			});
+		await this.database.batch([upsertEvents, expireMissing, updateState]);
 	}
 
 	private syncStateQuery(

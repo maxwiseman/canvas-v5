@@ -4,6 +4,7 @@ import type {
 	CanvasAccountRef,
 	CanvasResourceType,
 	NormalizedCanvasAssignment,
+	NormalizedCanvasCalendarEvent,
 	NormalizedCanvasCourse,
 	NormalizedCanvasResource,
 } from "./types";
@@ -95,6 +96,20 @@ const canvasAssignmentSchema = z
 	})
 	.passthrough();
 
+const canvasCalendarEventSchema = z
+	.object({
+		id: z.union([z.string(), z.number()]).transform(String),
+		title: z.string(),
+		start_at: z.string().nullable().optional(),
+		end_at: z.string().nullable().optional(),
+		all_day: z.boolean().optional(),
+		all_day_date: z.string().nullable().optional(),
+		context_code: z.string().optional(),
+		context_name: z.string().optional(),
+		html_url: z.string().optional(),
+	})
+	.passthrough();
+
 export async function normalizeCanvasCourse(
 	payload: unknown,
 	account: CanvasAccountRef,
@@ -157,6 +172,31 @@ export async function normalizeCanvasAssignment(
 		submission: assignment.submission,
 	};
 
+	return {
+		...normalized,
+		canvasAccountId: account.id,
+		observedAt,
+		contentHash: await hashCanvasRecord(normalized),
+	};
+}
+
+export async function normalizeCanvasCalendarEvent(
+	payload: unknown,
+	account: CanvasAccountRef,
+	observedAt: string,
+): Promise<NormalizedCanvasCalendarEvent> {
+	const event = canvasCalendarEventSchema.parse(payload);
+	const normalized = {
+		id: event.id,
+		title: event.title,
+		start_at: event.start_at ?? null,
+		end_at: event.end_at ?? null,
+		all_day: event.all_day,
+		all_day_date: event.all_day_date ?? null,
+		context_code: event.context_code,
+		context_name: event.context_name,
+		html_url: event.html_url,
+	};
 	return {
 		...normalized,
 		canvasAccountId: account.id,

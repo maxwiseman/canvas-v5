@@ -176,7 +176,23 @@ export interface NormalizedCanvasResource extends CanvasRecordMetadata {
 	metadata?: Record<string, unknown>;
 }
 
-export type CanvasSyncScope = "courses" | "assignments" | "resources";
+export interface NormalizedCanvasCalendarEvent extends CanvasRecordMetadata {
+	id: string;
+	title: string;
+	start_at?: string | null;
+	end_at?: string | null;
+	all_day?: boolean;
+	all_day_date?: string | null;
+	context_code?: string;
+	context_name?: string;
+	html_url?: string;
+}
+
+export type CanvasSyncScope =
+	| "courses"
+	| "assignments"
+	| "resources"
+	| "calendar";
 
 export interface CanvasSyncBatch<T extends CanvasRecordMetadata> {
 	account: CanvasAccountRef;

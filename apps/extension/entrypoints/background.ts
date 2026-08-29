@@ -1,5 +1,6 @@
 import {
 	fetchNormalizedAssignments,
+	fetchNormalizedCalendarEvents,
 	fetchNormalizedCourseResources,
 	fetchNormalizedCourses,
 } from "@canvas-v5/canvas-core";
@@ -241,6 +242,15 @@ async function syncCanvasTarget(
 		canvasUserId: identity.canvasUserId,
 	};
 	const courses = await fetchNormalizedCourses(source, account, observedAt);
+	const calendarEventsPromise = fetchNormalizedCalendarEvents(
+		source,
+		account,
+		[
+			`user_${identity.canvasUserId}`,
+			...courses.map((course) => `course_${course.id}`),
+		],
+		observedAt,
+	);
 	const assignments: Array<{ courseId: number; records: unknown[] }> = [];
 	const resources: Array<{ courseId: number; records: unknown[] }> = [];
 	for (const course of courses) {
@@ -273,6 +283,7 @@ async function syncCanvasTarget(
 			courses,
 			assignments,
 			resources,
+			calendarEvents: await calendarEventsPromise,
 		},
 	});
 	if (!upload.ok) {

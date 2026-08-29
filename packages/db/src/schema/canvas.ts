@@ -1,6 +1,7 @@
 import type {
 	IconId,
 	NormalizedCanvasAssignment,
+	NormalizedCanvasCalendarEvent,
 	NormalizedCanvasCourse,
 	NormalizedCanvasResource,
 } from "@canvas-v5/canvas-core";
@@ -227,6 +228,40 @@ export const canvasCachedResource = pgTable(
 			table.canvasCourseId,
 		),
 		index("canvas_cached_resource_user_id_idx").on(table.userId),
+	],
+);
+
+export const canvasCachedCalendarEvent = pgTable(
+	"canvas_cached_calendar_event",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		canvasIdentityId: text("canvas_identity_id")
+			.notNull()
+			.references(() => canvasIdentity.id, { onDelete: "cascade" }),
+		canvasEventId: text("canvas_event_id").notNull(),
+		payload: jsonb("payload").$type<NormalizedCanvasCalendarEvent>().notNull(),
+		contentHash: text("content_hash").notNull(),
+		generationId: text("generation_id").notNull(),
+		observedAt: timestamp("observed_at").notNull(),
+		deletedAt: timestamp("deleted_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("canvas_cached_calendar_event_identity_event_unique_idx").on(
+			table.canvasIdentityId,
+			table.canvasEventId,
+		),
+		index("canvas_cached_calendar_event_user_id_idx").on(table.userId),
+		index("canvas_cached_calendar_event_context_idx").on(
+			table.canvasIdentityId,
+		),
 	],
 );
 

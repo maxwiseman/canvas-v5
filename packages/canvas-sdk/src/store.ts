@@ -296,7 +296,8 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 	async applySnapshot<T extends CanvasRecordMetadata>(
 		batch: CanvasSyncBatch<T>,
 	): Promise<CanvasSyncResult> {
-		const storeName = batch.scope;
+		const storeName: StoreName =
+			batch.scope === "calendar" ? "calendarItems" : batch.scope;
 		const existing = await this.getAll<
 			CanvasRecordMetadata & {
 				course_id?: number;
@@ -308,7 +309,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 				: undefined;
 		const retained = existing.filter((record) => {
 			if (record.canvasAccountId !== batch.account.id) return true;
-			if (batch.scope === "courses") return false;
+			if (batch.scope === "courses" || batch.scope === "calendar") return false;
 			return record.course_id !== scopeCourseId;
 		});
 		await this.replaceAll(storeName, [

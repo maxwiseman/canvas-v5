@@ -1,6 +1,7 @@
 import { CanvasRequestError } from "./errors";
 import {
 	normalizeCanvasAssignment,
+	normalizeCanvasCalendarEvent,
 	normalizeCanvasCourse,
 	normalizeCanvasResource,
 } from "./normalization";
@@ -11,9 +12,41 @@ import type {
 	CanvasSyncRepository,
 	CanvasSyncResult,
 	NormalizedCanvasAssignment,
+	NormalizedCanvasCalendarEvent,
 	NormalizedCanvasCourse,
 	NormalizedCanvasResource,
 } from "./types";
+
+export async function fetchNormalizedCalendarEvents(
+	source: CanvasDataSource,
+	account: CanvasAccountRef,
+	contextCodes: string[],
+	observedAt = new Date().toISOString(),
+): Promise<NormalizedCanvasCalendarEvent[]> {
+	const groups = chunkValues(contextCodes, 10);
+	const paths = (groups.length > 0 ? groups : [[]]).map((contexts) => {
+		const search = new URLSearchParams({
+			type: "event",
+			all_events: "true",
+			per_page: "100",
+		});
+		for (const contextCode of contexts) {
+			search.append("context_codes[]", contextCode);
+		}
+		return `/api/v1/calendar_events?${search.toString()}`;
+	});
+	const payloads = (
+		await Promise.all(
+			paths.map((path) => source.paginatedRequest<unknown>(path)),
+		)
+	).flat();
+	const events = await Promise.all(
+		payloads.map((payload) =>
+			normalizeCanvasCalendarEvent(payload, account, observedAt),
+		),
+	);
+	return [...new Map(events.map((event) => [event.id, event])).values()];
+}
 
 export async function fetchNormalizedCourses(
 	source: CanvasDataSource,
@@ -507,6 +540,17 @@ export async function syncCanvasSearchCache(options: {
 		options.account,
 		observedAt,
 	);
+	const calendarEventsPromise = fetchNormalizedCalendarEvents(
+		options.source,
+		options.account,
+		[
+			...(options.account.canvasUserId
+				? [`user_${options.account.canvasUserId}`]
+				: []),
+			...courses.map((course) => `course_${course.id}`),
+		],
+		observedAt,
+	);
 	const courseData = [] as Array<{
 		courseId: number;
 		assignments: NormalizedCanvasAssignment[];
@@ -553,5 +597,23 @@ export async function syncCanvasSearchCache(options: {
 			}),
 		);
 	}
+	const calendarEvents = await calendarEventsPromise;
+	results.push(
+		await options.repository.applySnapshot({
+			account: options.account,
+			scope: "calendar",
+			generationId,
+			observedAt,
+			records: calendarEvents,
+		}),
+	);
 	return results;
+}
+
+function chunkValues<T>(values: T[], size: number) {
+	const chunks: T[][] = [];
+	for (let index = 0; index < values.length; index += size) {
+		chunks.push(values.slice(index, index + size));
+	}
+	return chunks;
 }

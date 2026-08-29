@@ -186,6 +186,46 @@ export function pageDetail(page: NormalizedCanvasResource) {
 	};
 }
 
+export function resourceDetail(resource: NormalizedCanvasResource) {
+	const metadata = resource.metadata ?? {};
+	const safeMetadata = Object.fromEntries(
+		[
+			"url",
+			"topic_id",
+			"user_name",
+			"posted_at",
+			"created_at",
+			"due_at",
+			"lock_at",
+			"unlock_at",
+			"points_possible",
+			"question_count",
+			"content_type",
+			"display_name",
+			"filename",
+			"size",
+			"published",
+			"front_page",
+			"locked_for_user",
+			"lock_explanation",
+		]
+			.filter((key) => metadata[key] !== undefined)
+			.map((key) => [key, metadata[key]]),
+	);
+	return {
+		id: resource.canvasResourceId,
+		courseId: resource.course_id,
+		type: resource.resourceType,
+		title: resource.title,
+		body: resource.body ?? null,
+		htmlUrl: resource.html_url ?? null,
+		updatedAt: resource.updated_at ?? null,
+		metadata: safeMetadata,
+		observedAt: resource.observedAt,
+		contentHash: resource.contentHash,
+	};
+}
+
 export function isValidTimeZone(value: string) {
 	try {
 		new Intl.DateTimeFormat("en-US", { timeZone: value }).format();

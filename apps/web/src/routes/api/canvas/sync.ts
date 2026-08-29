@@ -1,6 +1,7 @@
 import { auth } from "@canvas-v5/auth";
 import {
 	normalizeCanvasAssignment,
+	normalizeCanvasCalendarEvent,
 	normalizeCanvasCourse,
 	normalizeCanvasResource,
 } from "@canvas-v5/canvas-core";
@@ -105,6 +106,20 @@ export const Route = createFileRoute("/api/canvas/sync")({
 						}),
 					);
 				}
+				const calendarEvents = await Promise.all(
+					input.calendarEvents.map((event) =>
+						normalizeCanvasCalendarEvent(event, account, observedAt),
+					),
+				);
+				results.push(
+					await repository.applySnapshot({
+						account,
+						scope: "calendar",
+						generationId,
+						observedAt,
+						records: calendarEvents,
+					}),
+				);
 
 				if (input.requestId) {
 					await db
@@ -161,4 +176,5 @@ const syncInput = z.object({
 			}),
 		)
 		.default([]),
+	calendarEvents: z.array(z.record(z.string(), z.unknown())).default([]),
 });

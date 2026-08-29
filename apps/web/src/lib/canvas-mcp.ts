@@ -16,6 +16,7 @@ import {
 	listCompactAssignments,
 	listCompactPages,
 	pageDetail,
+	resourceDetail,
 } from "./canvas-mcp-data";
 import {
 	CanvasSessionRequiredError,
@@ -29,6 +30,9 @@ const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_UPCOMING_DAYS = 7;
 const ASSIGNMENT_WIDGET_URI = "ui://canvas-v5/upcoming-assignments-v4.html";
+const ASSIGNMENT_PREVIEW_URI = "ui://canvas-v5/assignment-preview-v1.html";
+const RESOURCE_PREVIEW_URI = "ui://canvas-v5/course-resource-preview-v1.html";
+const CALENDAR_WIDGET_URI = "ui://canvas-v5/calendar-v2.html";
 const timezoneSchema = z
 	.string()
 	.default("UTC")
@@ -237,7 +241,8 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			}),
 	);
 
-	server.registerTool(
+	registerAppTool(
+		server,
 		"canvas_get_assignment",
 		{
 			title: "Get Canvas assignment details",
@@ -250,6 +255,12 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				refresh: z.boolean().default(false),
 			},
 			annotations: refreshableAnnotations,
+			_meta: {
+				ui: { resourceUri: ASSIGNMENT_PREVIEW_URI },
+				"openai/outputTemplate": ASSIGNMENT_PREVIEW_URI,
+				"openai/toolInvocation/invoking": "Loading Canvas assignment…",
+				"openai/toolInvocation/invoked": "Canvas assignment ready",
+			},
 		},
 		async ({ accountId, courseId, assignmentId, refresh }) =>
 			runTool(async () => {
@@ -330,7 +341,8 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			}),
 	);
 
-	server.registerTool(
+	registerAppTool(
+		server,
 		"canvas_get_page",
 		{
 			title: "Get Canvas page details",
@@ -343,6 +355,12 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				refresh: z.boolean().default(false),
 			},
 			annotations: refreshableAnnotations,
+			_meta: {
+				ui: { resourceUri: RESOURCE_PREVIEW_URI },
+				"openai/outputTemplate": RESOURCE_PREVIEW_URI,
+				"openai/toolInvocation/invoking": "Loading Canvas page…",
+				"openai/toolInvocation/invoked": "Canvas page ready",
+			},
 		},
 		async ({ accountId, courseId, pageUrl, refresh }) =>
 			runTool(async () => {
@@ -379,6 +397,134 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 						acquisition,
 					},
 					`Returned details for ${page.title}.`,
+				);
+			}),
+	);
+
+	registerAppTool(
+		server,
+		"canvas_get_course_resource",
+		{
+			title: "Get Canvas course resource details",
+			description:
+				"Preview one cached Canvas announcement, page, quiz, discussion, discussion entry, or file after identifying it with canvas_search. Use the exact resourceType and resourceId returned by search.",
+			inputSchema: {
+				accountId: z.string().optional(),
+				courseId: z.number().int(),
+				resourceType: z.enum([
+					"announcement",
+					"page",
+					"quiz",
+					"discussion",
+					"discussion-entry",
+					"file",
+				]),
+				resourceId: z.string().min(1),
+				refresh: z.boolean().default(false),
+			},
+			annotations: refreshableAnnotations,
+			_meta: {
+				ui: { resourceUri: RESOURCE_PREVIEW_URI },
+				"openai/outputTemplate": RESOURCE_PREVIEW_URI,
+				"openai/toolInvocation/invoking": "Loading Canvas resource…",
+				"openai/toolInvocation/invoked": "Canvas resource ready",
+			},
+		},
+		async ({ accountId, courseId, resourceType, resourceId, refresh }) =>
+			runTool(async () => {
+				assertRefreshScope(scopes, refresh);
+				const resolvedAccountId = await resolveAccountId(userId, accountId);
+				const acquisition = await acquireAccount(
+					userId,
+					resolvedAccountId,
+					refresh,
+				);
+				const repository = new PostgresCanvasRepository(db, userId);
+				const [courses, resources] = await Promise.all([
+					repository.listCourses(resolvedAccountId),
+					repository.listResources(resolvedAccountId, courseId),
+				]);
+				const resource = resources.find(
+					(candidate) =>
+						candidate.resourceType === resourceType &&
+						candidate.canvasResourceId === resourceId,
+				);
+				if (!resource) throw new Error("Canvas course resource not found.");
+				const course = courses.find((candidate) => candidate.id === courseId);
+				return success(
+					{
+						accountId: resolvedAccountId,
+						course: course
+							? {
+									id: course.id,
+									name: course.name,
+									code: course.course_code ?? null,
+								}
+							: { id: courseId, name: `Course ${courseId}`, code: null },
+						resource: resourceDetail(resource),
+						acquisition,
+					},
+					`Returned details for ${resource.title}.`,
+				);
+			}),
+	);
+
+	registerAppTool(
+		server,
+		"canvas_show_calendar",
+		{
+			title: "Show Canvas calendar",
+			description:
+				"Display a compact calendar of cached Canvas events and assignment due dates. Defaults to the current month.",
+			inputSchema: {
+				accountIds: z.array(z.string()).max(50).optional(),
+				courseIds: z.array(z.number().int()).max(100).optional(),
+				start: z.string().datetime({ offset: true }).optional(),
+				end: z.string().datetime({ offset: true }).optional(),
+				timezone: timezoneSchema,
+			},
+			annotations: readAnnotations,
+			_meta: {
+				ui: { resourceUri: CALENDAR_WIDGET_URI },
+				"openai/outputTemplate": CALENDAR_WIDGET_URI,
+				"openai/toolInvocation/invoking": "Loading Canvas calendar…",
+				"openai/toolInvocation/invoked": "Canvas calendar ready",
+			},
+		},
+		async (input) =>
+			runTool(async () => {
+				validateTimezone(input.timezone);
+				const range = calendarRange(input.start, input.end);
+				const selected = await selectAccountHealth(userId, input.accountIds);
+				const [sources, events] = await Promise.all([
+					loadAssignmentSources(userId, selected),
+					loadCalendarEvents(userId, selected, range, input.courseIds),
+				]);
+				const page = listCompactAssignments(sources, {
+					accountIds: selected.map((health) => health.account.id),
+					courseIds: input.courseIds,
+					dueAfter: range.start,
+					dueBefore: range.end,
+					includeUndated: false,
+					includeCompleted: true,
+					includeOverdue: false,
+					limit: MAX_PAGE_SIZE,
+					timezone: input.timezone,
+				});
+				return success(
+					{
+						accounts: selected,
+						assignments: page.assignments,
+						events,
+						pageInfo: page.pageInfo,
+						view: {
+							kind: "calendar",
+							timezone: input.timezone,
+							start: range.start,
+							end: range.end,
+						},
+					},
+					`Displayed ${page.assignments.length + events.length} Canvas calendar item${page.assignments.length + events.length === 1 ? "" : "s"}.`,
 				);
 			}),
 	);
@@ -547,7 +693,78 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 		}),
 	);
 
+	for (const resource of [
+		{
+			name: "Canvas V5 assignment preview",
+			uri: ASSIGNMENT_PREVIEW_URI,
+			description: "Focused Canvas assignment preview.",
+			widgetDescription:
+				"A focused Canvas V5 assignment preview with due date, submission details, assignment content, and an Open in Canvas action.",
+		},
+		{
+			name: "Canvas V5 course resource preview",
+			uri: RESOURCE_PREVIEW_URI,
+			description: "Focused Canvas course-resource preview.",
+			widgetDescription:
+				"A focused Canvas V5 preview for pages, quizzes, announcements, discussions, posts, and files.",
+		},
+		{
+			name: "Canvas V5 calendar",
+			uri: CALENDAR_WIDGET_URI,
+			description: "Compact Canvas calendar.",
+			widgetDescription:
+				"A compact Canvas V5 month calendar with assignment due dates and a selected-day agenda.",
+		},
+	] as const) {
+		registerAppResource(
+			server,
+			resource.name,
+			resource.uri,
+			{
+				description: resource.description,
+				mimeType: RESOURCE_MIME_TYPE,
+			},
+			async () => ({
+				contents: [
+					{
+						uri: resource.uri,
+						mimeType: RESOURCE_MIME_TYPE,
+						text: assignmentWidgetHtml,
+						_meta: {
+							ui: {
+								prefersBorder: true,
+								csp: { connectDomains: [], resourceDomains: [] },
+							},
+							"openai/widgetDescription": resource.widgetDescription,
+							"openai/widgetPrefersBorder": true,
+						},
+					},
+				],
+			}),
+		);
+	}
+
 	return server;
+}
+
+function calendarRange(start?: string, end?: string) {
+	const now = new Date();
+	const rangeStart = start
+		? new Date(start)
+		: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+	const rangeEnd = end
+		? new Date(end)
+		: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+	if (
+		!Number.isFinite(rangeStart.getTime()) ||
+		!Number.isFinite(rangeEnd.getTime())
+	) {
+		throw new Error("Calendar start and end must be valid dates.");
+	}
+	if (rangeStart >= rangeEnd) {
+		throw new Error("Calendar start must be before end.");
+	}
+	return { start: rangeStart.toISOString(), end: rangeEnd.toISOString() };
 }
 
 async function listUpcomingAssignments(
@@ -652,6 +869,79 @@ async function loadPageSources(
 			resources: await repository.listResources(account.id),
 		})),
 	);
+}
+
+async function loadCalendarEvents(
+	userId: string,
+	health: Awaited<ReturnType<typeof listCanvasAccountHealth>>,
+	range: { start: string; end: string },
+	courseIds?: number[],
+) {
+	const repository = new PostgresCanvasRepository(db, userId);
+	const selectedCourses = courseIds ? new Set(courseIds) : null;
+	const start = new Date(range.start);
+	const end = new Date(range.end);
+	const groups = await Promise.all(
+		health.map(async ({ account }) => {
+			const [courses, events] = await Promise.all([
+				repository.listCourses(account.id),
+				repository.listCalendarEvents(account.id),
+			]);
+			const courseById = new Map(courses.map((course) => [course.id, course]));
+			return events.flatMap((event) => {
+				const courseId = calendarCourseId(event.context_code);
+				if (selectedCourses && (!courseId || !selectedCourses.has(courseId))) {
+					return [];
+				}
+				const startsAt = event.all_day_date ?? event.start_at;
+				if (!startsAt) return [];
+				const eventStart = new Date(startsAt);
+				if (
+					!Number.isFinite(eventStart.getTime()) ||
+					eventStart < start ||
+					eventStart >= end
+				) {
+					return [];
+				}
+				const course = courseId ? courseById.get(courseId) : undefined;
+				return [
+					{
+						id: event.id,
+						title: event.title,
+						startAt: event.start_at ?? null,
+						endAt: event.end_at ?? null,
+						allDay: event.all_day ?? false,
+						allDayDate: event.all_day_date ?? null,
+						contextCode: event.context_code ?? null,
+						contextName: course?.name ?? event.context_name ?? account.label,
+						htmlUrl: event.html_url ?? null,
+						account: { id: account.id, label: account.label },
+						course: course
+							? {
+									id: course.id,
+									name: course.name,
+									code: course.course_code ?? null,
+								}
+							: null,
+					},
+				];
+			});
+		}),
+	);
+	return groups
+		.flat()
+		.sort((left, right) =>
+			(left.allDayDate ?? left.startAt ?? "").localeCompare(
+				right.allDayDate ?? right.startAt ?? "",
+			),
+		);
+}
+
+function calendarCourseId(contextCode?: string) {
+	const match = contextCode?.match(/^course_(\d+)$/);
+	if (!match?.[1]) return undefined;
+	const courseId = Number(match[1]);
+	return Number.isSafeInteger(courseId) ? courseId : undefined;
 }
 
 async function accountHealth(userId: string, accountId: string) {

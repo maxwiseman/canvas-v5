@@ -445,11 +445,79 @@ describe("search resource sync", () => {
 			"courses",
 			"assignments",
 			"resources",
+			"calendar",
 		]);
 		expect(batches[1]?.records).toHaveLength(1);
 		expect(batches[1]?.records[0]).toMatchObject({
 			id: 17,
 			course_id: 263347,
 		});
+	});
+
+	test("fetches and commits calendar events for the user and active courses", async () => {
+		const paths: string[] = [];
+		const batches: CanvasSyncBatch<CanvasRecordMetadata>[] = [];
+		const source: CanvasDataSource = {
+			async paginatedRequest<T>(path: string) {
+				paths.push(path);
+				if (path.startsWith("/api/v1/courses?")) {
+					return [{ id: 42, name: "Biology" }] as T[];
+				}
+				if (path.startsWith("/api/v1/calendar_events?")) {
+					return [
+						{
+							id: 91,
+							title: "Advising appointment",
+							start_at: "2026-08-29T15:00:00.000Z",
+							context_code: "course_42",
+						},
+					] as T[];
+				}
+				return [] as T[];
+			},
+			async request<T>() {
+				return {} as T;
+			},
+		};
+		const repository: CanvasSyncRepository = {
+			async applySnapshot<T extends CanvasRecordMetadata>(
+				batch: CanvasSyncBatch<T>,
+			) {
+				batches.push(batch);
+				return {
+					scope: batch.scope,
+					scopeKey: batch.scopeKey,
+					generationId: batch.generationId,
+					observedAt: batch.observedAt,
+					recordCount: batch.records.length,
+				};
+			},
+		};
+
+		await syncCanvasSearchCache({
+			source,
+			repository,
+			account: {
+				id: "account-1",
+				baseUrl: "https://canvas.example.edu",
+				canvasUserId: "7",
+			},
+			observedAt: "2026-08-29T12:00:00.000Z",
+			generationId: "generation-1",
+		});
+
+		const calendarPath = paths.find((path) =>
+			path.startsWith("/api/v1/calendar_events?"),
+		);
+		expect(calendarPath).toContain("context_codes%5B%5D=user_7");
+		expect(calendarPath).toContain("context_codes%5B%5D=course_42");
+		const calendarBatch = batches.find((batch) => batch.scope === "calendar");
+		expect(calendarBatch?.records).toEqual([
+			expect.objectContaining({
+				id: "91",
+				title: "Advising appointment",
+				context_code: "course_42",
+			}),
+		]);
 	});
 });

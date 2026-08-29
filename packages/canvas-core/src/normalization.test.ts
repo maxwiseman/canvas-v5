@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	hashCanvasRecord,
 	normalizeCanvasAssignment,
+	normalizeCanvasCalendarEvent,
 	normalizeCanvasCourse,
 } from "./normalization";
 
@@ -103,5 +104,29 @@ describe("Canvas normalization", () => {
 		expect(await hashCanvasRecord({ a: 1, b: 2 })).toBe(
 			await hashCanvasRecord({ b: 2, a: 1 }),
 		);
+	});
+
+	test("normalizes calendar events without arbitrary Canvas fields", async () => {
+		const event = await normalizeCanvasCalendarEvent(
+			{
+				id: 91,
+				title: "Advising appointment",
+				start_at: "2026-08-29T15:00:00.000Z",
+				end_at: "2026-08-29T15:30:00.000Z",
+				context_code: "course_42",
+				html_url: "https://canvas.example.edu/calendar?event_id=91",
+				hidden_payload: "do-not-store",
+			},
+			account,
+			"2026-08-29T12:00:00.000Z",
+		);
+
+		expect(event).toMatchObject({
+			id: "91",
+			title: "Advising appointment",
+			context_code: "course_42",
+			canvasAccountId: "account-1",
+		});
+		expect(event).not.toHaveProperty("hidden_payload");
 	});
 });

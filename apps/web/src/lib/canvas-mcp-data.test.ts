@@ -10,6 +10,7 @@ import {
 	listCompactAssignments,
 	listCompactPages,
 	pageDetail,
+	resourceDetail,
 } from "./canvas-mcp-data";
 
 const metadata = {
@@ -170,5 +171,25 @@ describe("Canvas MCP page projection", () => {
 		expect(detail.body).toBe("<p>Read chapter one.</p>");
 		expect(detail.pageUrl).toBe("week-one");
 		expect(JSON.stringify(detail)).not.toContain("not exposed");
+	});
+
+	test("returns a generic resource preview with allowlisted metadata", () => {
+		const cachedQuiz = resources[1];
+		if (!cachedQuiz) throw new Error("Expected a cached quiz fixture.");
+		const detail = resourceDetail({
+			...cachedQuiz,
+			metadata: {
+				question_count: 8,
+				points_possible: 20,
+				secure_params: "secret",
+			},
+		});
+
+		expect(detail.type).toBe("quiz");
+		expect(detail.metadata).toEqual({
+			question_count: 8,
+			points_possible: 20,
+		});
+		expect(JSON.stringify(detail)).not.toContain("secure_params");
 	});
 });
