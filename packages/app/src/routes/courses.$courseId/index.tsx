@@ -54,7 +54,7 @@ function CourseRoute() {
 }
 
 function HomeDocument({ children }: { children: React.ReactNode }) {
-	return <section className="mx-auto w-full max-w-3xl">{children}</section>;
+	return <section className="mx-auto w-full max-w-3xl p-8">{children}</section>;
 }
 
 function ActivityStream({ items }: { items: CanvasActivityItem[] }) {

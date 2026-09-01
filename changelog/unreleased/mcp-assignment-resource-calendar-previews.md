@@ -1,2 +1,0 @@
-- Add focused MCP previews for individual assignments and course resources, plus a compact interactive calendar for cached assignment due dates.
-- Sync Canvas calendar events into the remote cache and include them alongside assignment due dates in the MCP calendar.

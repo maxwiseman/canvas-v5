@@ -316,7 +316,7 @@ function PlannerDayGroup({
 }) {
 	return (
 		<section>
-			<div className="sticky top-0 z-10 -mx-1 mb-2 bg-background/95 px-1 py-2 backdrop-blur">
+			<div className="sticky -top-1 z-10 -mx-1 mb-2 bg-background/95 px-1 py-2 backdrop-blur">
 				<h2 className="font-medium text-muted-foreground text-sm">
 					{formatDayHeader(group.date)}
 				</h2>

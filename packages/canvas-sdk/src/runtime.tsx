@@ -1255,10 +1255,11 @@ export class CanvasRuntime {
 		courseId: number,
 		assetType: CanvasModuleItemAssetType,
 		assetId: number | string,
+		options?: { forceRefresh?: boolean },
 	) {
 		const cacheKey = moduleItemSequenceCacheKey(courseId, assetType, assetId);
 		const cached = this.moduleItemSequenceCache.get(cacheKey);
-		if (cached) return cached;
+		if (cached && !options?.forceRefresh) return cached;
 
 		const pending = this.moduleItemSequenceRequests.get(cacheKey);
 		if (pending) return pending;
@@ -2039,7 +2040,9 @@ export function useModuleItemSequence(
 			loading: !cached,
 		}));
 		void runtime
-			.getModuleItemSequence(normalizedCourseId, assetType, assetId)
+			.getModuleItemSequence(normalizedCourseId, assetType, assetId, {
+				forceRefresh: true,
+			})
 			.then((sequence) => {
 				if (!controller.signal.aborted) {
 					setState({ loading: false, sequence });

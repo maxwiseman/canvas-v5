@@ -1,4 +1,5 @@
 @import "@canvas-v5/ui/globals.css";
+@import "shadcn/tailwind.css";
 @source "./**/*.{ts,tsx}";
 
 .canvas-html-adaptive-foreground {

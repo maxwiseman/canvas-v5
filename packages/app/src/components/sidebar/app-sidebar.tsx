@@ -47,7 +47,7 @@ export function AppSidebar() {
 			<SidebarHeader>
 				<GlobalSearch />
 			</SidebarHeader>
-			<SidebarContent>
+			<SidebarContent className="scroll-fade-y">
 				<AnimatePresence initial={false} mode="wait">
 					{showMainMenu && (
 						<motion.div

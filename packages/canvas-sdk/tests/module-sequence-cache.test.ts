@@ -33,6 +33,27 @@ describe("module item sequence cache", () => {
 		expect(runtime.getCachedModuleItemSequence(42, "Page", "1")).toBeDefined();
 	});
 
+	test("refreshes a cached sequence while coalescing forced requests", async () => {
+		const transport = new CountingCanvasTransport();
+		const runtime = new CanvasRuntime({
+			mode: "mock",
+			canvasTransport: transport,
+			overlayTransport: new LocalOverlayTransport(),
+		});
+
+		await runtime.getModuleItemSequence(42, "Page", "1");
+		await Promise.all([
+			runtime.getModuleItemSequence(42, "Page", "1", {
+				forceRefresh: true,
+			}),
+			runtime.getModuleItemSequence(42, "Page", "1", {
+				forceRefresh: true,
+			}),
+		]);
+
+		expect(transport.requests).toHaveLength(2);
+	});
+
 	test("prefetches adjacent items for uninterrupted navigation", async () => {
 		const transport = new CountingCanvasTransport();
 		const runtime = new CanvasRuntime({
