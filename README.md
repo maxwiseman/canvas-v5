@@ -1,117 +1,161 @@
-# canvas-v5
+# Canvas V5
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Start, Self, TRPC, and more.
+A replacement interface for Canvas LMS, available as a standalone web app and a
+browser extension. Both runtimes share the same React app and SDK: the web app
+uses a saved Canvas connection, while the extension works with your existing
+Canvas browser session.
+
+[Open the web app](https://canvas.maxw.app) ·
+[Download the extension](https://github.com/maxwiseman/canvas-v5/releases/latest) ·
+[Changelog](changelog/)
 
 ## Features
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Start** - SSR framework with TanStack Router
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **tRPC** - End-to-end type-safe APIs
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
-- **Biome** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+- Browse courses, assignments, modules, pages, files, announcements, discussions,
+  and quizzes, with global search and previous/next course navigation.
+- Preview course files in place, including PDFs and Office documents.
+- Track upcoming work in the planner and calendar. View Canvas course totals,
+  assignment grades, and instructor feedback with attachments.
+- Write text submissions in a spacious Plate rich-text editor with headings,
+  lists, links, text and highlight colors, images, and inline/block code.
+- Save text drafts to Canvas's native draft storage and an account-scoped local
+  IndexedDB store. Restore drafts later, retry offline saves, and resolve
+  conflicts with drafts changed elsewhere.
+- Submit files and website URLs, with file validation and upload retry support.
+  Media recording, annotation, quizzes, discussions, and external tools use
+  explicit Canvas entry points where native tools are needed.
+- Switch between Canvas connections, use light or dark mode, and access Canvas
+  data through a hosted MCP server with interactive previews.
 
-## Getting Started
+Native draft storage is shared with Canvas. Mobile-app draft interoperability
+has not yet been verified.
 
-First, install the dependencies:
+## Install the extension
+
+Download the Chrome or Firefox ZIP from the
+[latest GitHub Release](https://github.com/maxwiseman/canvas-v5/releases/latest).
+Release assets also include a source archive. Releases are distributed through
+GitHub; publishing a release does not submit it to browser extension stores.
+
+For Chrome, unzip the Chrome package, enable Developer mode at
+`chrome://extensions`, and choose **Load unpacked** with the extracted folder.
+For Firefox development, unzip the Firefox package and load its `manifest.json`
+as a temporary add-on at `about:debugging#/runtime/this-firefox`.
+
+Sign in to Canvas normally, then open a Canvas page. The extension mounts the
+shared interface after checking the Canvas session. A native Canvas fallback is
+available for workflows that need the original interface.
+
+## Architecture
+
+| Package | Responsibility |
+| --- | --- |
+| `apps/web` | TanStack Start host, app authentication, Canvas token proxy, and MCP endpoints |
+| `apps/extension` | WXT extension, Canvas page mounting, and background sync/auth bridge |
+| `packages/app` | Shared routes and product UI used by both runtimes |
+| `packages/canvas-sdk` | Runtime state, transports, IndexedDB cache, drafts, and React hooks |
+| `packages/canvas-core` | Shared Canvas validation, normalization, and cache reconciliation |
+| `packages/canvas-mcp-app` | Interactive MCP App views |
+| `packages/ui` | Shared shadcn components, styles, and design tokens |
+| `packages/api`, `packages/auth`, `packages/db` | Server APIs, Better Auth, and Drizzle database schema |
+| `packages/env`, `packages/config` | Environment validation and shared tooling configuration |
+
+The web app's catchall route hosts the shared router. Product routes belong in
+`packages/app/src/routes`; web-only API and authentication routes belong in
+`apps/web/src/routes`. Shared UI talks to SDK hooks rather than importing
+web-only authentication or database code.
+
+The stack uses TypeScript, React, TanStack Start/Router, Tailwind CSS, shadcn,
+Plate, Better Auth, Drizzle, PostgreSQL, Bun, and Turborepo. It was originally
+scaffolded with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack).
+
+## Local development
+
+Use Bun 1.3.11 and a PostgreSQL database compatible with the project's
+`@neondatabase/serverless` driver, such as Neon.
+
+1. Install dependencies from the repository root:
+
+   ```bash
+   bun install
+   ```
+
+2. Create `apps/web/.env` with your development configuration:
+
+   ```dotenv
+   DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE
+   BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters-long
+   BETTER_AUTH_URL=http://localhost:3000
+   CORS_ORIGIN=http://localhost:3000
+   ```
+
+3. Apply the schema and start the web app:
+
+   ```bash
+   bun run db:push
+   bun run dev:web
+   ```
+
+Open [localhost:3000](http://localhost:3000). Connect a Canvas account in the app;
+browser-session connections require the extension.
+
+To develop the extension against the local web app, run this in another terminal:
 
 ```bash
-bun install
+VITE_CANVAS_V5_APP_ORIGIN=http://localhost:3000 bun --filter extension dev
 ```
 
-## Database Setup
+Use `bun --filter extension dev:firefox` for Firefox, with the same origin
+variable when using a local backend. The default extension app origin is
+`https://canvas.maxw.app`.
 
-This project uses PostgreSQL with Drizzle ORM.
+## Development commands
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/web/.env` file with your PostgreSQL connection details.
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start workspace development tasks |
+| `bun run dev:web` | Start the web app on port 3000 |
+| `bun run build` | Build the web app, extension, and MCP App |
+| `bun --filter @canvas-v5/app check-types` | Check the shared UI |
+| `bun --filter @canvas-v5/canvas-sdk check-types` | Check the SDK |
+| `bun --filter extension compile` | Check extension types |
+| `bun --cwd apps/web tsc --noEmit` | Check web app types |
+| `bun test packages/app/tests packages/canvas-sdk/tests` | Run UI utility and SDK tests |
+| `bun --filter extension zip` | Package Chrome |
+| `bun --filter extension zip:firefox` | Package Firefox and extension sources |
+| `bun run db:push` | Apply the current schema directly |
+| `bun run db:generate` | Generate SQL migrations |
+| `bun run db:migrate` | Apply migrations |
+| `bun run db:studio` | Open Drizzle Studio |
+| `bun run check` | Run Biome with formatting and lint fixes |
 
-3. Apply the schema to your database:
+UI primitives live in `packages/ui/src/components`; shared styles and design
+tokens live in `packages/ui/src/styles/globals.css`. Import primitives through
+`@canvas-v5/ui/components/*`.
 
-```bash
-bun run db:push
-```
+## Releases
 
-Then, run the development server:
+Completed changes get a Markdown fragment in `changelog/unreleased/`. A release
+rolls its included fragments into `changelog/vX.Y.Z.md` and tags the release
+commit. Publishing the GitHub Release triggers
+[the extension release workflow](.github/workflows/extension-release.yml), which
+builds Chrome and Firefox packages using the tag's version and uploads the ZIPs.
 
-```bash
-bun run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser to see the fullstack application.
-
-## UI Customization
-
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
-
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
-
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
-
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
-
-Import shared components like this:
-
-```tsx
-import { Button } from "@canvas-v5/ui/components/button";
-```
-
-### Add app-specific blocks
-
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
-
-## Git Hooks and Formatting
-
-- Run checks: `bun run check`
-
-## Project Structure
-
-```
-canvas-v5/
-├── apps/
-│   └── web/         # Fullstack application (React + TanStack Start)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
-```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
-- `bun run db:studio`: Open database studio UI
-- `bun run check`: Run Biome formatting and linting
+See [AGENTS.md](AGENTS.md) for runtime boundaries, contribution notes, and the
+full release procedure.
 
 ## Canvas Agent Access
 
 Canvas V5 includes a Streamable HTTP MCP server at `/api/mcp`. It
 uses the best available source for each logical Canvas account:
 
-- OAuth or API-token credentials are fetched directly from the server.
-- Browser-session credentials are synchronized by the extension service worker.
+- Data for OAuth or API-token connections is fetched directly by the server.
+- Data for browser-session connections is synchronized by the extension service worker.
 - Both paths use the same validation, normalization, content hashing, and cloud
   cache reconciliation code in `packages/canvas-core`.
 
-After updating the checkout, apply the additive Drizzle schema. This now
-includes the OAuth client, consent, token, and signing-key tables used by hosted
-MCP clients:
+Apply the database schema when setting up or updating a deployment. It includes
+the OAuth client, consent, token, and signing-key tables used by hosted MCP clients:
 
 ```bash
 bun run db:push
@@ -155,20 +199,17 @@ Authentication: OAuth
 
 Canvas V5 publishes OAuth authorization-server and protected-resource metadata,
 supports dynamic client registration with PKCE, and displays its own sign-in and
-consent screens. The `canvas_show_upcoming_assignments` tool renders a bundled
-MCP App with refresh, pagination, assignment links, host-controlled theming, and
-system dark-mode fallback. The UI uses the standard MCP Apps bridge; ChatGPT
-compatibility metadata is included without making the widget depend on
+consent screens. The MCP tools provide interactive assignment lists, assignment
+and resource previews, and a calendar of assignment due dates and Canvas events.
+The bundled MCP App supports host-controlled theming and system dark-mode
+fallback. The UI uses the standard MCP Apps bridge; ChatGPT compatibility
+metadata is included without making the widget depend on
 `window.openai`.
 
 The same MCP URL can be used by Claude and other clients that support remote MCP
 OAuth. Interactive UI travels with it only when the client implements MCP Apps;
 clients without that extension can still call the normal data tools and receive
 structured results.
-
-To prepare an App Store submission, first deploy and test the production URL in
-ChatGPT developer mode. Store review assets, privacy-policy URLs, and final tool
-descriptions can then be prepared against that verified deployment.
 
 ### Personal bearer-token connection
 
@@ -182,6 +223,6 @@ Transport: Streamable HTTP
 ```
 
 MCP tokens are stored as SHA-256 hashes and are shown only once. The MCP tools
-include account, course, assignment, assignment-detail, search, interactive
-assignment overview, and explicit refresh operations. Canvas access tokens
-remain encrypted server-side; browser session cookies are never uploaded.
+include account, course, assignment, resource, search, calendar, interactive
+preview, and explicit refresh operations. Canvas access tokens remain encrypted
+server-side; browser session cookies are never uploaded.
