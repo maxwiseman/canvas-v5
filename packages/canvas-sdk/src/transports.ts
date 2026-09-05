@@ -71,6 +71,21 @@ export class CanvasRestTransport implements CanvasTransport {
 			headers.set("Authorization", `Bearer ${this.options.accessToken}`);
 		}
 
+		// Canvas session writes require the same CSRF header as the native UI.
+		if (
+			!this.options.accessToken &&
+			requestOptions.method &&
+			requestOptions.method !== "GET" &&
+			typeof document !== "undefined" &&
+			globalThis.location?.origin === new URL(this.options.baseUrl).origin
+		) {
+			const token = document.cookie
+				.split("; ")
+				.find((cookie) => cookie.startsWith("_csrf_token="))
+				?.slice(12);
+			if (token) headers.set("X-CSRF-Token", decodeURIComponent(token));
+		}
+
 		const response = await fetch(new URL(path, this.options.baseUrl), {
 			method: requestOptions.method ?? "GET",
 			headers,

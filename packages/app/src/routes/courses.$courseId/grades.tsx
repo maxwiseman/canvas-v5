@@ -1,4 +1,8 @@
-import { useAssignments, useSyncStatus } from "@canvas-v5/canvas-sdk";
+import {
+	useAssignments,
+	useSelfEnrollment,
+	useSyncStatus,
+} from "@canvas-v5/canvas-sdk";
 import { Badge } from "@canvas-v5/ui/components/badge";
 import {
 	Card,
@@ -35,7 +39,15 @@ function GradesRoute() {
 	const assignments = useAssignments(courseId).filter(
 		(assignment) => !assignment.omit_from_final_grade,
 	);
-	const sync = useSyncStatus().find((state) => state.scope === "assignments");
+	const selfEnrollment = useSelfEnrollment(courseId);
+	const syncStates = useSyncStatus();
+	const sync =
+		syncStates.find((state) => state.scope === "assignments") ??
+		syncStates.find((state) => state.scope === "enrollments");
+	// Naive points-based estimate, kept as a fallback when Canvas has not
+	// returned a computed total (and as a starting point for a future
+	// what-if calculator). It intentionally ignores assignment-group
+	// weights, so it can differ from the Canvas total below.
 	const graded = assignments.filter(
 		(assignment) =>
 			assignment.submission?.score !== undefined &&
@@ -49,7 +61,19 @@ function GradesRoute() {
 		(total, assignment) => total + (assignment.points_possible ?? 0),
 		0,
 	);
-	const percentage = possible > 0 ? (earned / possible) * 100 : 0;
+	const estimatedPercentage = possible > 0 ? (earned / possible) * 100 : 0;
+	const canvasCurrent = selfEnrollment?.grades?.current_score ?? null;
+	const canvasFinal = selfEnrollment?.grades?.final_score ?? null;
+	const canvasLetter =
+		selfEnrollment?.grades?.current_grade ??
+		selfEnrollment?.grades?.final_grade ??
+		null;
+	const hasCanvasTotal = canvasCurrent != null || canvasFinal != null;
+	const headlineScore = canvasCurrent ?? canvasFinal;
+	const headlineLetter =
+		canvasCurrent != null
+			? (selfEnrollment?.grades?.current_grade ?? null)
+			: (selfEnrollment?.grades?.final_grade ?? canvasLetter);
 
 	return (
 		<PageWrapper className="mx-auto w-full max-w-5xl">
@@ -66,17 +90,51 @@ function GradesRoute() {
 				<div className="flex flex-col gap-6">
 					<Card size="sm">
 						<CardHeader>
-							<CardTitle>
-								{possible > 0 ? `${percentage.toFixed(1)}%` : "No grade yet"}
+							<CardTitle className="flex items-center gap-2">
+								{hasCanvasTotal && headlineScore != null ? (
+									<>
+										{`${headlineScore.toFixed(1)}%`}
+										{headlineLetter ? (
+											<Badge variant="secondary">{headlineLetter}</Badge>
+										) : null}
+									</>
+								) : possible > 0 ? (
+									`${estimatedPercentage.toFixed(1)}% (estimated)`
+								) : (
+									"No grade yet"
+								)}
 							</CardTitle>
 							<CardDescription>
-								{possible > 0
-									? `${formatPoints(earned)} of ${formatPoints(possible)} graded points`
-									: "Graded work will appear here."}
+								{hasCanvasTotal ? (
+									<>
+										{canvasCurrent != null
+											? "Total from Canvas, based on graded work."
+											: "Total from Canvas, counting ungraded as zero."}
+										{canvasFinal != null &&
+										canvasCurrent != null &&
+										canvasFinal !== canvasCurrent ? (
+											<>
+												{" "}
+												Counting ungraded as zero: {canvasFinal.toFixed(1)}%.
+											</>
+										) : null}
+									</>
+								) : possible > 0 ? (
+									<>
+										{`Estimated from ${formatPoints(earned)} of ${formatPoints(possible)} graded points. `}
+										Canvas has not returned a computed total yet.
+									</>
+								) : (
+									"Graded work will appear here."
+								)}
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Progress value={percentage} />
+							<Progress
+								value={
+									(hasCanvasTotal ? headlineScore : null) ?? estimatedPercentage
+								}
+							/>
 						</CardContent>
 					</Card>
 					<Card size="sm">
@@ -95,11 +153,15 @@ function GradesRoute() {
 											<TableCell>
 												<Link
 													className="font-medium hover:underline"
-												params={{
-													courseId,
-													assignmentId: String(assignment.id),
-												} as never}
-												to={"/courses/$courseId/assignments/$assignmentId" as never}
+													params={
+														{
+															courseId,
+															assignmentId: String(assignment.id),
+														} as never
+													}
+													to={
+														"/courses/$courseId/assignments/$assignmentId" as never
+													}
 												>
 													{assignment.name}
 												</Link>

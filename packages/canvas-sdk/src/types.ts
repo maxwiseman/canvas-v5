@@ -112,6 +112,17 @@ export interface CanvasCourseHome {
 	activity_stream?: CanvasActivityItem[];
 }
 
+export interface CanvasEnrollmentGrades {
+	current_score?: number | null;
+	final_score?: number | null;
+	current_grade?: string | null;
+	final_grade?: string | null;
+	unposted_current_score?: number | null;
+	unposted_final_score?: number | null;
+	unposted_current_grade?: string | null;
+	unposted_final_grade?: string | null;
+}
+
 export interface CanvasEnrollment {
 	id: number;
 	course_id: number;
@@ -119,6 +130,7 @@ export interface CanvasEnrollment {
 	type?: string;
 	role?: string;
 	enrollment_state?: string;
+	grades?: CanvasEnrollmentGrades | null;
 }
 
 export interface CanvasCourseUser {
@@ -371,6 +383,22 @@ export interface CanvasAnnouncement {
 	html_url?: string;
 }
 
+export interface CanvasSubmissionDraft {
+	id: string;
+	account: string;
+	courseId: number;
+	assignmentId: number;
+	submissionId?: string;
+	attempt?: number;
+	body: string;
+	baseBody?: string;
+	pending: boolean;
+	localSaved?: boolean;
+	status: "pending" | "saving" | "saved" | "error" | "conflict";
+	error?: string;
+	remoteBody?: string;
+}
+
 export interface CanvasSubmission {
 	id: string | number;
 	assignment_id: number;
@@ -420,11 +448,10 @@ export interface CanvasSubmissionComment {
 	attachments?: CanvasFile[];
 }
 
-export interface CanvasSubmissionInput {
-	type: "online_text_entry" | "online_url";
-	text?: string;
-	url?: string;
-}
+export type CanvasSubmissionInput =
+	| { type: "online_text_entry"; text: string }
+	| { type: "online_url"; url: string }
+	| { type: "online_upload"; fileIds: number[] };
 
 export interface CanvasQuiz extends Record<string, unknown> {
 	canvasAccountId?: string;
@@ -676,6 +703,7 @@ export interface CanvasRuntimeSnapshot {
 	files: CanvasFile[];
 	courseTabs: CanvasCourseTab[];
 	submissions: CanvasSubmission[];
+	submissionDrafts: CanvasSubmissionDraft[];
 	calendarItems: CanvasCalendarItem[];
 	plannerItems: CanvasPlannerItem[];
 	conversations: CanvasConversation[];

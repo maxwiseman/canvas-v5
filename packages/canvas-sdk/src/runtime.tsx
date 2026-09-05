@@ -17,6 +17,8 @@ import {
 } from "react";
 import { stableSortByDate, stableSortByLabel } from "./stable-order";
 import { CanvasIndexedDbStore, emptySnapshot } from "./store";
+import { SubmissionDraftSync } from "./submission-drafts";
+import { uploadCanvasFile, uploadSubmissionFile } from "./submission-upload";
 import type {
 	AssignmentComment,
 	CanvasActivityItem,
@@ -113,12 +115,30 @@ export class CanvasRuntime {
 	>();
 	private snapshot: CanvasRuntimeSnapshot;
 	private readonly store: CanvasIndexedDbStore;
+	private readonly draftSync: SubmissionDraftSync;
 
 	constructor(private readonly options: CanvasRuntimeOptions) {
 		this.snapshot = emptySnapshot(options.mode);
 		this.store =
 			options.store ??
 			new CanvasIndexedDbStore(`canvas-v5-sdk:${options.mode}`);
+		this.draftSync = new SubmissionDraftSync({
+			transport: options.canvasTransport,
+			account: () => this.submissionDraftAccount(),
+			get: (id) =>
+				this.snapshot.submissionDrafts.find((draft) => draft.id === id),
+			publish: (draft) =>
+				this.setSnapshot({
+					...this.snapshot,
+					submissionDrafts: [
+						...this.snapshot.submissionDrafts.filter(
+							(item) => item.id !== draft.id,
+						),
+						draft,
+					],
+				}),
+			persist: (draft) => this.store.put("submissionDrafts", draft),
+		});
 	}
 
 	subscribe = (listener: () => void) => {
@@ -230,6 +250,7 @@ export class CanvasRuntime {
 			activeAccount: selectedAccount,
 		});
 		await this.store.replaceAll("connections", accounts);
+		void this.retryPendingTextDrafts();
 		await Promise.allSettled([this.syncCourses(), this.syncCourseOverlays()]);
 	}
 
@@ -1346,6 +1367,51 @@ export class CanvasRuntime {
 		}
 	}
 
+	submissionDraftAccount() {
+		const auth = this.snapshot.canvasAuth;
+		const account = this.snapshot.activeAccount;
+		const baseUrl =
+			account?.canvasBaseUrl ??
+			(auth.status === "authenticated" ? auth.baseUrl : undefined);
+		const userId =
+			account?.canvasUserId ??
+			(auth.status === "authenticated" ? auth.user.id : undefined);
+		return baseUrl && userId
+			? `${new URL(baseUrl).origin}:${userId}`
+			: undefined;
+	}
+	submissionDraftId(courseId: number, assignmentId: number) {
+		const account = this.submissionDraftAccount();
+		return account ? `${account}:${courseId}:${assignmentId}` : undefined;
+	}
+	async loadTextDraft(courseId: number, assignmentId: number) {
+		const account = this.submissionDraftAccount();
+		const id = this.submissionDraftId(courseId, assignmentId);
+		if (!id || !account) throw new Error("The Canvas connection is not ready.");
+		await this.draftSync.load(id, account, courseId, assignmentId);
+	}
+	retryPendingTextDrafts = async () => {
+		const account = this.submissionDraftAccount();
+		const drafts = this.snapshot.submissionDrafts.filter(
+			(draft) =>
+				draft.account === account &&
+				draft.pending &&
+				draft.status !== "conflict",
+		);
+		await Promise.allSettled(
+			drafts.map((draft) => this.draftSync.flush(draft.id)),
+		);
+	};
+	saveTextDraft(id: string, body: string) {
+		return this.draftSync.edit(id, body);
+	}
+	flushTextDraft(id: string) {
+		return this.draftSync.flush(id);
+	}
+	resolveTextDraft(id: string, useLocal: boolean) {
+		return this.draftSync.resolve(id, useLocal);
+	}
+
 	async syncSubmission(courseId: number, assignmentId: number) {
 		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
 		try {
@@ -1379,11 +1445,77 @@ export class CanvasRuntime {
 		}
 	}
 
+	async uploadAssignmentFile(
+		courseId: number,
+		assignmentId: number,
+		file: File,
+	) {
+		const canvasBaseUrl =
+			this.snapshot.activeAccount?.canvasBaseUrl ??
+			(this.snapshot.canvasAuth.status === "authenticated"
+				? this.snapshot.canvasAuth.baseUrl
+				: undefined);
+		if (!canvasBaseUrl) {
+			throw new Error("The active Canvas connection is not ready.");
+		}
+		return uploadSubmissionFile(
+			this.options.canvasTransport,
+			courseId,
+			assignmentId,
+			file,
+			canvasBaseUrl,
+		);
+	}
+
+	async uploadEditorImage(file: File) {
+		if (!/^image\/(png|jpeg|gif|webp|avif)$/.test(file.type)) {
+			throw new Error("Choose a PNG, JPEG, GIF, WebP, or AVIF image.");
+		}
+		const canvasBaseUrl =
+			this.snapshot.activeAccount?.canvasBaseUrl ??
+			(this.snapshot.canvasAuth.status === "authenticated"
+				? this.snapshot.canvasAuth.baseUrl
+				: undefined);
+		if (!canvasBaseUrl) {
+			throw new Error("The active Canvas connection is not ready.");
+		}
+		const accountId = this.snapshot.activeAccount?.id;
+		const id = await uploadCanvasFile(
+			this.options.canvasTransport,
+			"/api/v1/users/self/files",
+			file,
+			canvasBaseUrl,
+		);
+		if (this.snapshot.activeAccount?.id !== accountId) {
+			throw new Error("The Canvas account changed during upload.");
+		}
+		const saved = await this.options.canvasTransport.request<CanvasFile>(
+			`/api/v1/files/${id}`,
+		);
+		if (!saved.url) throw new Error("Canvas did not return an image URL.");
+		return {
+			url: saved.url,
+			fileId: id,
+			apiEndpoint: new URL(`/api/v1/files/${id}`, canvasBaseUrl).toString(),
+		};
+	}
+
 	async submitAssignment(
 		courseId: number,
 		assignmentId: number,
 		input: CanvasSubmissionInput,
 	) {
+		const draftId = this.submissionDraftId(courseId, assignmentId);
+		const draftAccount = this.submissionDraftAccount();
+		if (draftId) await this.draftSync.flush(draftId);
+		if (
+			input.type === "online_text_entry" &&
+			this.snapshot.submissionDrafts.find((draft) => draft.id === draftId)
+				?.status === "conflict"
+		)
+			throw new Error("Choose which draft to keep before submitting.");
+		if (this.submissionDraftAccount() !== draftAccount)
+			throw new Error("The Canvas account changed before submission.");
 		this.setScope("submissions", { status: "syncing", pendingJobs: 1 });
 		try {
 			await this.options.canvasTransport.request<CanvasSubmission>(
@@ -1395,11 +1527,14 @@ export class CanvasRuntime {
 							submission_type: input.type,
 							...(input.type === "online_text_entry"
 								? { body: input.text ?? "" }
-								: { url: input.url ?? "" }),
+								: input.type === "online_upload"
+									? { file_ids: input.fileIds }
+									: { url: input.url }),
 						},
 					},
 				},
 			);
+			if (draftId) await this.draftSync.submitted(draftId);
 			return await this.syncSubmission(courseId, assignmentId);
 		} catch (error) {
 			this.failScope("submissions", error, "Unable to submit this assignment.");
@@ -1785,7 +1920,10 @@ export function CanvasRuntimeProvider({
 	children: ReactNode;
 }) {
 	useEffect(() => {
-		void runtime.boot();
+		void runtime.boot().then(() => runtime.retryPendingTextDrafts());
+		window.addEventListener("online", runtime.retryPendingTextDrafts);
+		return () =>
+			window.removeEventListener("online", runtime.retryPendingTextDrafts);
 	}, [runtime]);
 
 	return (
@@ -1910,6 +2048,61 @@ export function useAssignments(courseId?: number | string) {
 			},
 		);
 	}, [assignments, normalizedCourseId]);
+}
+
+export function useEnrollments(courseId?: number | string) {
+	const runtime = useCanvasRuntime();
+	const enrollments = useCanvasSnapshot().enrollments;
+	const normalizedCourseId =
+		courseId === undefined ? undefined : Number(courseId);
+
+	useEffect(() => {
+		if (
+			normalizedCourseId !== undefined &&
+			Number.isFinite(normalizedCourseId)
+		) {
+			void runtime.syncEnrollments(normalizedCourseId);
+		}
+	}, [normalizedCourseId, runtime]);
+
+	return useMemo(
+		() =>
+			normalizedCourseId === undefined
+				? enrollments
+				: enrollments.filter(
+						(enrollment) => enrollment.course_id === normalizedCourseId,
+					),
+		[enrollments, normalizedCourseId],
+	);
+}
+
+export function useSelfEnrollment(courseId: number | string) {
+	const snapshot = useCanvasSnapshot();
+	const enrollments = useEnrollments(courseId);
+
+	return useMemo(() => {
+		if (enrollments.length === 0) return undefined;
+		const canvasUserId =
+			snapshot.canvasAuth.status === "authenticated"
+				? Number(snapshot.canvasAuth.user.id)
+				: Number.NaN;
+		const accountUserId = Number(snapshot.activeAccount?.canvasUserId);
+		const matchesSelf = enrollments.filter(
+			(enrollment) =>
+				(Number.isFinite(canvasUserId) &&
+					enrollment.user_id === canvasUserId) ||
+				(Number.isFinite(accountUserId) &&
+					enrollment.user_id === accountUserId),
+		);
+		const candidates = matchesSelf;
+		return (
+			candidates.find((enrollment) =>
+				`${enrollment.type ?? ""} ${enrollment.role ?? ""}`
+					.toLowerCase()
+					.includes("student"),
+			) ?? candidates[0]
+		);
+	}, [enrollments, snapshot.activeAccount?.canvasUserId, snapshot.canvasAuth]);
 }
 
 export function useCoursePeople(courseId: number | string) {
@@ -2549,4 +2742,40 @@ function selectCourseOverlay(
 			(overlay) => overlay.canvasConnectionId === activeConnectionId,
 		) ?? (courseOverlays.length === 1 ? courseOverlays[0] : undefined)
 	);
+}
+
+export function useTextSubmissionDraft(
+	courseId: number,
+	assignmentId: number,
+	enabled = true,
+) {
+	const runtime = useCanvasRuntime();
+	const snapshot = useCanvasSnapshot();
+	const id = runtime.submissionDraftId(courseId, assignmentId);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string>();
+	const reload = useCallback(async () => {
+		setLoading(true);
+		setError(undefined);
+		try {
+			await runtime.loadTextDraft(courseId, assignmentId);
+		} catch (error) {
+			setError(
+				error instanceof Error ? error.message : "Unable to load the draft.",
+			);
+		} finally {
+			setLoading(false);
+		}
+	}, [runtime, courseId, assignmentId]);
+	useEffect(() => {
+		if (enabled && id) void reload();
+		else setLoading(false);
+	}, [enabled, id, reload]);
+	return {
+		id,
+		draft: snapshot.submissionDrafts.find((draft) => draft.id === id),
+		loading,
+		error,
+		reload,
+	};
 }

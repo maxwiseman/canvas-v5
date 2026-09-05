@@ -1,6 +1,5 @@
 import {
 	type AssignmentComment,
-	type CanvasSubmissionInput,
 	useAssignment,
 	useCanvasRuntime,
 	useCanvasSnapshot,
@@ -21,14 +20,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@canvas-v5/ui/components/card";
-import { Input } from "@canvas-v5/ui/components/input";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "@canvas-v5/ui/components/tabs";
-import { Textarea } from "@canvas-v5/ui/components/textarea";
+import { Progress } from "@canvas-v5/ui/components/progress";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	CalendarClock,
@@ -39,9 +31,9 @@ import {
 	ListChecks,
 	LoaderCircle,
 	RotateCw,
-	Send,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { AssignmentSubmission } from "../../../components/assignment-submission";
 import { CanvasHTML } from "../../../components/canvas-html";
 import { CommentField } from "../../../components/comment-field";
 import { CourseSequenceNavigation } from "../../../components/course-sequence-navigation";
@@ -63,11 +55,20 @@ export const Route = createFileRoute(
 function AssignmentRoute() {
 	const { courseId, assignmentId } = Route.useParams();
 	const assignment = useAssignment(courseId, assignmentId);
-	const submission = useSubmission(courseId, assignmentId);
+	const detailedSubmission = useSubmission(courseId, assignmentId);
+	const submission =
+		detailedSubmission ??
+		(assignment?.submission
+			? {
+					...assignment.submission,
+					id: `${courseId}:${assignmentId}:self`,
+					course_id: Number(courseId),
+					assignment_id: Number(assignmentId),
+				}
+			: undefined);
 	const runtime = useCanvasRuntime();
 	const snapshot = useCanvasSnapshot();
 	const sync = useSyncStatus().find((state) => state.scope === "assignments");
-	const [actionError, setActionError] = useState<string>();
 	const [commentError, setCommentError] = useState<string>();
 	const [commentsLoading, setCommentsLoading] = useState(false);
 	const [assignmentComments, setAssignmentComments] = useState<
@@ -136,21 +137,9 @@ function AssignmentRoute() {
 		);
 	}
 
-	const availableTypes = (assignment.submission_types ?? []).filter(
-		(type): type is CanvasSubmissionInput["type"] =>
-			type === "online_text_entry" || type === "online_url",
-	);
 	const externalToolOnly =
 		assignment.submission_types?.length === 1 &&
 		assignment.submission_types[0] === "external_tool";
-	const requiresCanvas = (assignment.submission_types ?? []).some(
-		(type) =>
-			!availableTypes.includes(type as CanvasSubmissionInput["type"]) &&
-			type !== "none" &&
-			type !== "on_paper",
-	);
-	const canSubmit =
-		assignment.can_submit !== false && !assignment.locked_for_user;
 
 	return (
 		<PageWrapper className="mx-auto w-full max-w-6xl">
@@ -191,9 +180,7 @@ function AssignmentRoute() {
 
 					{submission?.submission_comments?.length ? (
 						<div className="mt-8 flex flex-col gap-3">
-							<h2 className="font-medium text-sm">
-								Canvas submission comments
-							</h2>
+							<h2 className="font-medium text-sm">Feedback</h2>
 							{submission.submission_comments.map((comment) => (
 								<Card key={comment.id} size="sm">
 									<CardHeader>
@@ -204,8 +191,34 @@ function AssignmentRoute() {
 											{formatDateTime(comment.created_at)}
 										</CardDescription>
 									</CardHeader>
-									<CardContent className="whitespace-pre-wrap">
-										{comment.comment}
+									<CardContent className="flex flex-col gap-2 whitespace-pre-wrap">
+										{comment.comment ? <p>{comment.comment}</p> : null}
+										{comment.attachments?.length ? (
+											<div className="flex flex-col gap-1">
+												{comment.attachments.map((attachment) => {
+													const href = attachment.url ?? attachment.public_url;
+													const label =
+														attachment.display_name ??
+														attachment.filename ??
+														`Attachment ${attachment.id}`;
+													return href ? (
+														<a
+															className="text-primary text-sm hover:underline"
+															href={String(href)}
+															key={attachment.id}
+															rel="noreferrer noopener"
+															target="_blank"
+														>
+															{String(label)}
+														</a>
+													) : (
+														<span className="text-sm" key={attachment.id}>
+															{String(label)}
+														</span>
+													);
+												})}
+											</div>
+										) : null}
 									</CardContent>
 								</Card>
 							))}
@@ -268,12 +281,13 @@ function AssignmentRoute() {
 							<p className="text-destructive text-sm">{commentError}</p>
 						) : null}
 					</div>
-					{actionError ? (
-						<p className="mt-2 text-destructive text-sm">{actionError}</p>
-					) : null}
 				</div>
 
 				<div className="flex flex-col gap-4">
+					<GradeCard
+						pointsPossible={assignment.points_possible}
+						submission={submission}
+					/>
 					<Card size="sm">
 						<CardHeader className="gap-0">
 							<CardTitle>Assignment details</CardTitle>
@@ -299,16 +313,10 @@ function AssignmentRoute() {
 						</CardContent>
 					</Card>
 
-					{canSubmit &&
-					!externalToolOnly &&
-					(availableTypes.length > 0 || requiresCanvas) ? (
-						<SubmissionCard
-							assignmentId={Number(assignmentId)}
-							availableTypes={availableTypes}
-							canvasUrl={assignment.html_url}
-							courseId={Number(courseId)}
-							onError={setActionError}
-							requiresCanvas={requiresCanvas}
+					{!externalToolOnly ? (
+						<AssignmentSubmission
+							key={`${snapshot.activeAccount?.id ?? commentTargetKey}:${courseId}:${assignmentId}`}
+							assignment={{ ...assignment, submission }}
 						/>
 					) : null}
 				</div>
@@ -369,16 +377,13 @@ function ExternalToolFrame({
 				{canvasUrl ? (
 					<Button
 						render={
+							// biome-ignore lint/a11y/useAnchorContent: Button supplies the visible link content through render composition.
 							<a
 								aria-label="Open this submission tool in Canvas"
 								href={withNativeFallback(canvasUrl)}
 								rel="noreferrer noopener"
 								target="_blank"
-							>
-								<span className="sr-only">
-									Open this submission tool in Canvas
-								</span>
-							</a>
+							/>
 						}
 						variant="outline"
 					>
@@ -403,141 +408,99 @@ function ExternalToolFrame({
 		<iframe
 			allow="camera; microphone; display-capture; clipboard-read; clipboard-write"
 			allowFullScreen
-			className="mt-8 min-h-[44rem] w-full rounded-lg border bg-background"
+			className="mt-8 min-h-176 w-full rounded-lg border bg-background"
 			src={launchUrl}
 			title={`${name} submission tool`}
 		/>
 	);
 }
 
-function SubmissionCard({
-	courseId,
-	assignmentId,
-	availableTypes,
-	requiresCanvas,
-	canvasUrl,
-	onError,
+function GradeCard({
+	submission,
+	pointsPossible,
 }: {
-	courseId: number;
-	assignmentId: number;
-	availableTypes: CanvasSubmissionInput["type"][];
-	requiresCanvas: boolean;
-	canvasUrl?: string;
-	onError: (error?: string) => void;
+	submission?: {
+		score?: number | null;
+		grade?: string | null;
+		workflow_state?: string;
+		missing?: boolean;
+		late?: boolean;
+		excused?: boolean;
+	};
+	pointsPossible?: number | null;
 }) {
-	const runtime = useCanvasRuntime();
-	const [text, setText] = useState("");
-	const [url, setUrl] = useState("");
-	const [submitting, setSubmitting] = useState(false);
-	const defaultType = availableTypes[0];
+	const hasScore =
+		submission?.score !== undefined && submission?.score !== null;
+	const hasGrade =
+		submission?.grade !== undefined &&
+		submission?.grade !== null &&
+		submission.grade !== "";
+	const possible = pointsPossible ?? 0;
+	const percentage =
+		hasScore && possible > 0
+			? ((submission?.score ?? 0) / possible) * 100
+			: undefined;
 
-	async function submit(input: CanvasSubmissionInput) {
-		setSubmitting(true);
-		onError(undefined);
-		try {
-			await runtime.submitAssignment(courseId, assignmentId, input);
-		} catch (error) {
-			onError(
-				error instanceof Error ? error.message : "Unable to submit assignment.",
-			);
-		} finally {
-			setSubmitting(false);
-		}
+	let description: string;
+	if (submission?.excused) {
+		description = "You are excused from this assignment.";
+	} else if (hasScore || hasGrade) {
+		description =
+			percentage !== undefined
+				? `${percentage.toFixed(1)}% of ${formatNumber(possible)} points`
+				: "Graded";
+	} else if (submission?.missing) {
+		description = "Marked missing. No grade yet.";
+	} else if (submission?.workflow_state === "submitted") {
+		description = "Submitted and awaiting a grade.";
+	} else {
+		description = "No grade yet.";
 	}
 
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle>Submit assignment</CardTitle>
-				<CardDescription>
-					Your submission is sent directly to Canvas.
-				</CardDescription>
+				<CardTitle>Grade</CardTitle>
+				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			<CardContent className="flex flex-col gap-4">
-				{defaultType ? (
-					<Tabs defaultValue={defaultType}>
-						<TabsList>
-							{availableTypes.includes("online_text_entry") ? (
-								<TabsTrigger value="online_text_entry">Text</TabsTrigger>
+			<CardContent className="flex flex-col gap-3">
+				{submission?.excused ? (
+					<Badge variant="outline">
+						<CheckCircle2 data-icon="inline-start" />
+						Excused
+					</Badge>
+				) : hasScore || hasGrade ? (
+					<>
+						<div className="flex items-baseline gap-1 tabular-nums">
+							<span className="font-semibold text-2xl">
+								{hasScore
+									? formatNumber(submission?.score ?? 0)
+									: (submission?.grade ?? "—")}
+							</span>
+							<span className="text-muted-foreground text-sm">
+								/ {formatNumber(possible)} points
+							</span>
+							{hasGrade &&
+							hasScore &&
+							submission?.grade !== String(submission?.score) ? (
+								<Badge className="ml-2" variant="secondary">
+									{submission?.grade}
+								</Badge>
 							) : null}
-							{availableTypes.includes("online_url") ? (
-								<TabsTrigger value="online_url">Website</TabsTrigger>
+							{!hasScore && hasGrade ? (
+								<Badge className="ml-2" variant="secondary">
+									{submission?.grade}
+								</Badge>
 							) : null}
-						</TabsList>
-						<TabsContent
-							className="flex flex-col gap-3 pt-3"
-							value="online_text_entry"
-						>
-							<Textarea
-								aria-label="Submission text"
-								onChange={(event) => setText(event.target.value)}
-								placeholder="Write your submission…"
-								rows={8}
-								value={text}
-							/>
-							<Button
-								disabled={!text.trim() || submitting}
-								onClick={() =>
-									void submit({ type: "online_text_entry", text: text.trim() })
-								}
-							>
-								{submitting ? (
-									<LoaderCircle
-										className="animate-spin"
-										data-icon="inline-start"
-									/>
-								) : (
-									<Send data-icon="inline-start" />
-								)}
-								Submit text
-							</Button>
-						</TabsContent>
-						<TabsContent
-							className="flex flex-col gap-3 pt-3"
-							value="online_url"
-						>
-							<Input
-								aria-label="Website URL"
-								onChange={(event) => setUrl(event.target.value)}
-								placeholder="https://…"
-								type="url"
-								value={url}
-							/>
-							<Button
-								disabled={!isValidHttpUrl(url) || submitting}
-								onClick={() => void submit({ type: "online_url", url })}
-							>
-								{submitting ? (
-									<LoaderCircle
-										className="animate-spin"
-										data-icon="inline-start"
-									/>
-								) : (
-									<Send data-icon="inline-start" />
-								)}
-								Submit website
-							</Button>
-						</TabsContent>
-					</Tabs>
-				) : null}
-				{requiresCanvas && canvasUrl ? (
-					<Button
-						render={
-							<a
-								aria-label="Submit files or media in Canvas"
-								href={withNativeFallback(canvasUrl)}
-								rel="noreferrer noopener"
-								target="_blank"
-							>
-								<span className="sr-only">Submit files or media in Canvas</span>
-							</a>
-						}
-						variant={defaultType ? "outline" : "default"}
-					>
-						<ExternalLink data-icon="inline-start" />
-						Submit files or media in Canvas
-					</Button>
-				) : null}
+						</div>
+						{percentage !== undefined ? <Progress value={percentage} /> : null}
+						{submission?.late ? (
+							<p className="text-muted-foreground text-sm">Submitted late.</p>
+						) : null}
+					</>
+				) : (
+					<SubmissionStatus submission={submission} />
+				)}
 			</CardContent>
 		</Card>
 	);
@@ -642,15 +605,6 @@ function formatNumber(value: number) {
 	return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
 		value,
 	);
-}
-
-function isValidHttpUrl(value: string) {
-	try {
-		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
-	} catch {
-		return false;
-	}
 }
 
 function withNativeFallback(value: string) {

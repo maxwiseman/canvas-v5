@@ -27,6 +27,7 @@ import type {
 	CanvasRuntimeMode,
 	CanvasRuntimeSnapshot,
 	CanvasSubmission,
+	CanvasSubmissionDraft,
 	CourseOverlay,
 	QueuedMutation,
 	SyncScope,
@@ -50,6 +51,7 @@ type StoreName =
 	| "files"
 	| "courseTabs"
 	| "submissions"
+	| "submissionDrafts"
 	| "calendarItems"
 	| "plannerItems"
 	| "conversations"
@@ -59,7 +61,7 @@ type StoreName =
 	| "syncScopes"
 	| "mutationQueue";
 
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 9;
 const OBSOLETE_STORE_NAMES = ["pages"] as const;
 
 const STORE_NAMES: StoreName[] = [
@@ -79,6 +81,7 @@ const STORE_NAMES: StoreName[] = [
 	"files",
 	"courseTabs",
 	"submissions",
+	"submissionDrafts",
 	"calendarItems",
 	"plannerItems",
 	"conversations",
@@ -105,6 +108,7 @@ type StoreRecord =
 	| CanvasFile
 	| CanvasCourseTab
 	| CanvasSubmission
+	| CanvasSubmissionDraft
 	| CanvasCalendarItem
 	| CanvasPlannerItem
 	| CanvasConversation
@@ -134,6 +138,7 @@ export function emptySnapshot(mode: CanvasRuntimeMode): CanvasRuntimeSnapshot {
 		files: [],
 		courseTabs: [],
 		submissions: [],
+		submissionDrafts: [],
 		calendarItems: [],
 		plannerItems: [],
 		conversations: [],
@@ -195,6 +200,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			files,
 			courseTabs,
 			submissions,
+			submissionDrafts,
 			calendarItems,
 			plannerItems,
 			conversations,
@@ -220,6 +226,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			this.getAll<CanvasFile>("files"),
 			this.getAll<CanvasCourseTab>("courseTabs"),
 			this.getAll<CanvasSubmission>("submissions"),
+			this.getAll<CanvasSubmissionDraft>("submissionDrafts"),
 			this.getAll<CanvasCalendarItem>("calendarItems"),
 			this.getAll<CanvasPlannerItem>("plannerItems"),
 			this.getAll<CanvasConversation>("conversations"),
@@ -264,6 +271,7 @@ export class CanvasIndexedDbStore implements CanvasSyncRepository {
 			files,
 			courseTabs,
 			submissions,
+			submissionDrafts,
 			calendarItems,
 			plannerItems,
 			conversations,

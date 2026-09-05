@@ -29,7 +29,9 @@ async function proxyCanvasRequest(request: Request) {
 	const path = requestUrl.searchParams.get("path");
 	const paginated = requestUrl.searchParams.get("paginated") === "true";
 
-	if (!connectionId || !path?.startsWith("/api/v1/")) {
+	const graphql =
+		path === "/api/graphql" && request.method === "POST" && !paginated;
+	if (!connectionId || !path || (!path?.startsWith("/api/v1/") && !graphql)) {
 		return Response.json({ error: "Invalid Canvas request" }, { status: 400 });
 	}
 
