@@ -1,0 +1,1 @@
+- Request Canvas refresh permission when connecting ChatGPT and return an OAuth reauthorization challenge for existing connections missing refresh access, while preserving cached read access.

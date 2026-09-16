@@ -261,12 +261,13 @@ function MoreMenu({
 	hiddenTabs: SidebarTab[];
 	onRestore: (tabId: string) => void;
 }) {
-	const itemCount = externalTabs.length + hiddenTabs.length;
+	const linkedExternalTabs = externalTabs.filter((tab) => tab.htmlUrl);
+	if (linkedExternalTabs.length === 0 && hiddenTabs.length === 0) return null;
+
 	return (
 		<Collapsible className="group/collapsible" render={<SidebarMenuItem />}>
 			<CollapsibleTrigger
 				className="group/more-trigger"
-				disabled={itemCount === 0}
 				render={<SidebarMenuButton />}
 			>
 				<Ellipsis />
@@ -275,7 +276,7 @@ function MoreMenu({
 			</CollapsibleTrigger>
 			<CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 data-ending-style:h-0 data-starting-style:h-0">
 				<SidebarMenuSub>
-					{externalTabs.map((tab) => (
+					{linkedExternalTabs.map((tab) => (
 						<ExternalToolSubItem key={tab.id} tab={tab} />
 					))}
 					{hiddenTabs.map((tab) => (

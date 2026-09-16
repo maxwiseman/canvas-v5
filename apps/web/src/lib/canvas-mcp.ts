@@ -26,6 +26,14 @@ import {
 	listOwnedCanvasIdentities,
 } from "./canvas-sync";
 
+import {
+	assertRefreshScope,
+	CanvasRefreshPermissionError,
+	canvasRefreshPermissionResult,
+	canvasToolSecurity,
+} from "./mcp-authorization";
+import { canvasMcpProtectedResourceMetadataUrl } from "./mcp-oauth";
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_UPCOMING_DAYS = 7;
@@ -87,6 +95,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			description:
 				"List every connected Canvas account with sync health. Use this to distinguish an empty account from one that is refreshing, unavailable, or needs reauthentication.",
 			annotations: readAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async () =>
 			runTool(async () => {
@@ -109,6 +118,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				refresh: z.boolean().default(false),
 			},
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async ({ accountId, refresh }) =>
 			runTool(async () => {
@@ -157,6 +167,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				...paginationSchema,
 			},
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async (input) =>
 			runTool(async () => {
@@ -200,6 +211,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				"Best default tool for questions like 'what assignments are coming up?' Returns incomplete assignments across all ready accounts for the next 7 days, sorted by effective due date, with course names, submission state, account health, and pagination. Cached read by default.",
 			inputSchema: upcomingInputSchema.shape,
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async (input) =>
 			runTool(async () => {
@@ -222,6 +234,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			inputSchema: upcomingDisplayInputSchema.shape,
 			annotations: readAnnotations,
 			_meta: {
+				...canvasToolSecurity(),
 				ui: { resourceUri: ASSIGNMENT_WIDGET_URI },
 				"openai/outputTemplate": ASSIGNMENT_WIDGET_URI,
 				"openai/toolInvocation/invoking": "Loading Canvas assignments…",
@@ -256,6 +269,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			},
 			annotations: refreshableAnnotations,
 			_meta: {
+				...canvasToolSecurity(),
 				ui: { resourceUri: ASSIGNMENT_PREVIEW_URI },
 				"openai/outputTemplate": ASSIGNMENT_PREVIEW_URI,
 				"openai/toolInvocation/invoking": "Loading Canvas assignment…",
@@ -313,6 +327,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				...paginationSchema,
 			},
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async (input) =>
 			runTool(async () => {
@@ -356,6 +371,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			},
 			annotations: refreshableAnnotations,
 			_meta: {
+				...canvasToolSecurity(),
 				ui: { resourceUri: RESOURCE_PREVIEW_URI },
 				"openai/outputTemplate": RESOURCE_PREVIEW_URI,
 				"openai/toolInvocation/invoking": "Loading Canvas page…",
@@ -424,6 +440,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			},
 			annotations: refreshableAnnotations,
 			_meta: {
+				...canvasToolSecurity(),
 				ui: { resourceUri: RESOURCE_PREVIEW_URI },
 				"openai/outputTemplate": RESOURCE_PREVIEW_URI,
 				"openai/toolInvocation/invoking": "Loading Canvas resource…",
@@ -485,6 +502,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			},
 			annotations: readAnnotations,
 			_meta: {
+				...canvasToolSecurity(),
 				ui: { resourceUri: CALENDAR_WIDGET_URI },
 				"openai/outputTemplate": CALENDAR_WIDGET_URI,
 				"openai/toolInvocation/invoking": "Loading Canvas calendar…",
@@ -543,6 +561,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				limit: z.number().int().min(1).max(100).default(25),
 			},
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(),
 		},
 		async ({ query, accountId, courseId, refresh, limit }) =>
 			runTool(async () => {
@@ -625,6 +644,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 				accountIds: z.array(z.string()).max(50).optional(),
 			},
 			annotations: refreshableAnnotations,
+			_meta: canvasToolSecurity(true),
 		},
 		async ({ accountId, accountIds }) =>
 			runTool(async () => {
@@ -822,14 +842,6 @@ async function listUpcomingAssignments(
 	};
 }
 
-function assertRefreshScope(scopes: string[], refresh: boolean) {
-	if (refresh && !scopes.includes("canvas:refresh")) {
-		throw new Error(
-			"The canvas:refresh permission is required to refresh Canvas data.",
-		);
-	}
-}
-
 async function acquireAccount(
 	userId: string,
 	accountId: string,
@@ -1015,10 +1027,19 @@ function contentSnippet(value: string) {
 
 async function runTool(
 	callback: () => Promise<ReturnType<typeof success>>,
-): Promise<ReturnType<typeof success> | ReturnType<typeof failure>> {
+): Promise<
+	| ReturnType<typeof success>
+	| ReturnType<typeof failure>
+	| ReturnType<typeof canvasRefreshPermissionResult>
+> {
 	try {
 		return await callback();
 	} catch (error) {
+		if (error instanceof CanvasRefreshPermissionError) {
+			return canvasRefreshPermissionResult(
+				canvasMcpProtectedResourceMetadataUrl(),
+			);
+		}
 		return failure(toolError(error));
 	}
 }

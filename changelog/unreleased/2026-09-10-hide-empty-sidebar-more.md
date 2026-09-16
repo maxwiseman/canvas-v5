@@ -1,0 +1,1 @@
+- Hide the course sidebar’s More item when there are no external links or hidden tabs to show.

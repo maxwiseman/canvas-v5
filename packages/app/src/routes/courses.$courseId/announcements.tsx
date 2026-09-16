@@ -1,4 +1,8 @@
-import { useAnnouncements, useSyncStatus } from "@canvas-v5/canvas-sdk";
+import {
+	useAnnouncements,
+	useCanvasRuntime,
+	useSyncStatus,
+} from "@canvas-v5/canvas-sdk";
 import {
 	Accordion,
 	AccordionContent,
@@ -8,6 +12,7 @@ import {
 import { Badge } from "@canvas-v5/ui/components/badge";
 import { createFileRoute } from "@tanstack/react-router";
 import { Megaphone } from "lucide-react";
+import { useState } from "react";
 import { CanvasHTML } from "../../components/canvas-html";
 import {
 	PageHeader,
@@ -25,6 +30,8 @@ export const Route = createFileRoute("/courses/$courseId/announcements")({
 function AnnouncementsRoute() {
 	const { courseId } = Route.useParams();
 	const announcements = useAnnouncements(courseId);
+	const runtime = useCanvasRuntime();
+	const [readError, setReadError] = useState<string>();
 	const sync = useSyncStatus().find((state) => state.scope === "announcements");
 
 	return (
@@ -36,15 +43,32 @@ function AnnouncementsRoute() {
 				</PageHeaderContent>
 			</PageHeader>
 
+			{readError ? (
+				<p role="alert" className="text-destructive text-sm">
+					{readError}
+				</p>
+			) : null}
 			{announcements.length > 0 ? (
-				<Accordion>
+				<Accordion
+					onValueChange={(values) => {
+						for (const value of values) {
+							void runtime
+								.markAnnouncementRead(Number(courseId), Number(value))
+								.catch(() => {
+									setReadError(
+										"Unable to save announcement read status locally.",
+									);
+								});
+						}
+					}}
+				>
 					{announcements.map((announcement) => (
 						<AccordionItem
 							key={announcement.id}
 							value={String(announcement.id)}
 						>
-							<AccordionTrigger>
-								<div className="flex min-w-0 items-center gap-3">
+							<AccordionTrigger className="items-center gap-3">
+								<div className="flex min-w-0 flex-1 items-center gap-3">
 									<Megaphone className="size-4 shrink-0 text-muted-foreground" />
 									<div className="min-w-0">
 										<div className="truncate">{announcement.title}</div>
@@ -53,7 +77,9 @@ function AnnouncementsRoute() {
 										</div>
 									</div>
 									{announcement.read_state === "unread" ? (
-										<Badge variant="secondary">New</Badge>
+										<Badge className="ml-auto shrink-0" variant="secondary">
+											New
+										</Badge>
 									) : null}
 								</div>
 							</AccordionTrigger>

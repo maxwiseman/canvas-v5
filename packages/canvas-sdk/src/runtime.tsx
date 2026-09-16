@@ -108,6 +108,8 @@ export class CanvasRuntime {
 	private listeners = new Set<() => void>();
 	private bootPromise?: Promise<void>;
 	private calendarSyncGeneration = 0;
+	private announcementReadRequests = new Map<string, Promise<void>>();
+	private announcementSyncGenerations = new Map<number, number>();
 	private moduleItemSequenceCache = new Map<string, CanvasModuleItemSequence>();
 	private moduleItemSequenceRequests = new Map<
 		string,
@@ -251,6 +253,7 @@ export class CanvasRuntime {
 		});
 		await this.store.replaceAll("connections", accounts);
 		void this.retryPendingTextDrafts();
+		void this.retryPendingAnnouncementReads();
 		await Promise.allSettled([this.syncCourses(), this.syncCourseOverlays()]);
 	}
 
@@ -681,21 +684,172 @@ export class CanvasRuntime {
 		}
 	}
 
+	getAnnouncements(snapshot = this.snapshot) {
+		const connectionId = snapshot.activeAccount?.connectionId;
+		const accountId = snapshot.activeAccount?.canvasIdentityId ?? connectionId;
+		return snapshot.announcements
+			.filter((item) => item.canvasAccountId === accountId)
+			.map((item) => {
+				const read = snapshot.mutationQueue.find(
+					(mutation) =>
+						mutation.type === "announcement.read" &&
+						mutation.target.canvasConnectionId === connectionId &&
+						mutation.target.canvasCourseId === item.course_id &&
+						mutation.payload.announcementId === item.id &&
+						!mutation.payload.confirmed,
+				);
+				return read ? { ...item, read_state: "read" as const } : item;
+			});
+	}
+
+	async markAnnouncementRead(courseId: number, announcementId: number) {
+		const connectionId = this.snapshot.activeAccount?.connectionId;
+		const announcement = this.getAnnouncements().find(
+			(item) => item.course_id === courseId && item.id === announcementId,
+		);
+		if (!connectionId || !announcement || announcement.read_state === "read")
+			return;
+		const now = new Date().toISOString();
+		const mutation: QueuedMutation = {
+			id: `announcement.read:${connectionId}:${courseId}:${announcementId}`,
+			type: "announcement.read",
+			status: "queued",
+			target: { canvasConnectionId: connectionId, canvasCourseId: courseId },
+			payload: { announcementId },
+			createdAt: now,
+			updatedAt: now,
+		};
+		this.publishAnnouncementRead(mutation);
+		// Persist intent before sending it, so closing the app cannot lose an offline read.
+		await this.store.put("mutationQueue", mutation);
+		await this.flushAnnouncementRead(mutation);
+	}
+
+	private publishAnnouncementRead(mutation: QueuedMutation) {
+		this.setSnapshot({
+			...this.snapshot,
+			mutationQueue: [
+				...this.snapshot.mutationQueue.filter(
+					(item) => item.id !== mutation.id,
+				),
+				mutation,
+			],
+		});
+	}
+
+	private flushAnnouncementRead(mutation: QueuedMutation): Promise<void> {
+		const existing = this.announcementReadRequests.get(mutation.id);
+		if (existing) return existing;
+		const request = this.sendAnnouncementRead(mutation).finally(() => {
+			this.announcementReadRequests.delete(mutation.id);
+		});
+		this.announcementReadRequests.set(mutation.id, request);
+		return request;
+	}
+
+	private async sendAnnouncementRead(mutation: QueuedMutation) {
+		if (
+			mutation.target.canvasConnectionId !==
+			this.snapshot.activeAccount?.connectionId
+		)
+			return;
+		let result: QueuedMutation;
+		try {
+			await this.options.canvasTransport.request(
+				`/api/v1/courses/${mutation.target.canvasCourseId}/discussion_topics/${mutation.payload.announcementId}/read`,
+				{ method: "PUT" },
+			);
+			result = {
+				...mutation,
+				status: "acked",
+				error: undefined,
+				updatedAt: new Date().toISOString(),
+			};
+		} catch (error) {
+			result = {
+				...mutation,
+				status: "error",
+				error:
+					error instanceof Error
+						? error.message
+						: "Unable to mark announcement read.",
+				updatedAt: new Date().toISOString(),
+			};
+		}
+		this.publishAnnouncementRead(result);
+		await this.store.put("mutationQueue", result);
+	}
+
+	retryPendingAnnouncementReads = async () => {
+		await Promise.allSettled(
+			this.snapshot.mutationQueue
+				.filter(
+					(item) =>
+						item.type === "announcement.read" &&
+						item.status !== "acked" &&
+						item.target.canvasConnectionId ===
+							this.snapshot.activeAccount?.connectionId,
+				)
+				.map(async (item) => {
+					await this.store.put("mutationQueue", item);
+					await this.flushAnnouncementRead(item);
+				}),
+		);
+	};
+
 	async syncAnnouncements(courseId: number) {
 		this.setScope("announcements", { status: "syncing", pendingJobs: 1 });
+		const generation =
+			(this.announcementSyncGenerations.get(courseId) ?? 0) + 1;
+		this.announcementSyncGenerations.set(courseId, generation);
 		try {
+			const account = this.getSyncAccount();
+			const connectionId = this.snapshot.activeAccount?.connectionId;
+			void this.retryPendingAnnouncementReads();
 			const records =
 				await this.options.canvasTransport.paginatedRequest<CanvasAnnouncement>(
 					`/api/v1/announcements?context_codes[]=course_${courseId}&per_page=100`,
 				);
+			if (
+				this.announcementSyncGenerations.get(courseId) !== generation ||
+				this.snapshot.activeAccount?.connectionId !== connectionId
+			)
+				return;
 			const announcements = [
 				...this.snapshot.announcements.filter(
-					(announcement) => announcement.course_id !== courseId,
+					(item) => item.course_id !== courseId,
 				),
-				...records.map((record) => ({ ...record, course_id: courseId })),
+				...records.map((record) => ({
+					...record,
+					course_id: courseId,
+					canvasAccountId: account.id,
+				})),
 			];
 			this.setSnapshot({ ...this.snapshot, announcements });
 			await this.store.replaceAll("announcements", announcements);
+			// Release the optimistic overlay only after Canvas has confirmed the read.
+			// A later explicit "mark unread" in Canvas can then be reflected here.
+			for (const mutation of this.snapshot.mutationQueue) {
+				if (
+					mutation.type === "announcement.read" &&
+					mutation.status === "acked" &&
+					mutation.target.canvasConnectionId === connectionId &&
+					mutation.target.canvasCourseId === courseId &&
+					!mutation.payload.confirmed &&
+					records.some(
+						(item) =>
+							item.id === mutation.payload.announcementId &&
+							item.read_state === "read",
+					)
+				) {
+					const confirmed = {
+						...mutation,
+						payload: { ...mutation.payload, confirmed: true },
+					};
+					this.publishAnnouncementRead(confirmed);
+					await this.store.put("mutationQueue", confirmed);
+				}
+			}
 			this.finishScope("announcements");
 		} catch (error) {
 			this.failScope("announcements", error, "Unable to sync announcements.");
@@ -1920,10 +2074,19 @@ export function CanvasRuntimeProvider({
 	children: ReactNode;
 }) {
 	useEffect(() => {
-		void runtime.boot().then(() => runtime.retryPendingTextDrafts());
+		void runtime.boot().then(() => {
+			void runtime.retryPendingTextDrafts();
+			void runtime.retryPendingAnnouncementReads();
+		});
 		window.addEventListener("online", runtime.retryPendingTextDrafts);
-		return () =>
+		window.addEventListener("online", runtime.retryPendingAnnouncementReads);
+		return () => {
 			window.removeEventListener("online", runtime.retryPendingTextDrafts);
+			window.removeEventListener(
+				"online",
+				runtime.retryPendingAnnouncementReads,
+			);
+		};
 	}, [runtime]);
 
 	return (
@@ -2284,18 +2447,20 @@ function moduleItemAssetId(
 
 export function useAnnouncements(courseId?: number | string) {
 	const runtime = useCanvasRuntime();
-	const announcements = useCanvasSnapshot().announcements;
+	const snapshot = useCanvasSnapshot();
 	const normalizedCourseId =
 		courseId === undefined ? undefined : Number(courseId);
 	useEffect(() => {
 		if (
+			snapshot.activeAccount &&
 			normalizedCourseId !== undefined &&
 			Number.isFinite(normalizedCourseId)
 		) {
 			void runtime.syncAnnouncements(normalizedCourseId);
 		}
-	}, [normalizedCourseId, runtime]);
+	}, [normalizedCourseId, runtime, snapshot.activeAccount]);
 	return useMemo(() => {
+		const announcements = runtime.getAnnouncements(snapshot);
 		const visibleAnnouncements =
 			normalizedCourseId === undefined
 				? announcements
@@ -2311,7 +2476,7 @@ export function useAnnouncements(courseId?: number | string) {
 				getId: (announcement) => announcement.id,
 			},
 		);
-	}, [announcements, normalizedCourseId]);
+	}, [snapshot, runtime, normalizedCourseId]);
 }
 
 export function usePages(courseId: number | string) {

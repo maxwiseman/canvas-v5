@@ -671,7 +671,7 @@ export interface SyncScopeState {
 
 export interface QueuedMutation {
 	id: string;
-	type: "course-overlay.update";
+	type: "course-overlay.update" | "announcement.read";
 	status: "queued" | "flushing" | "acked" | "error";
 	target: {
 		canvasConnectionId: string;

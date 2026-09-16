@@ -7,6 +7,7 @@ import { verifyAccessToken } from "better-auth/oauth2";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { createCanvasMcpServer } from "../../lib/canvas-mcp";
+import { canvasAuthorizationChallenge } from "../../lib/mcp-authorization";
 import { canvasMcpProtectedResourceMetadataUrl } from "../../lib/mcp-oauth";
 import { hashMcpToken } from "../../lib/mcp-token";
 
@@ -31,7 +32,9 @@ async function handleMcpRequest(request: Request) {
 			{
 				status: 401,
 				headers: {
-					"WWW-Authenticate": `Bearer resource_metadata="${canvasMcpProtectedResourceMetadataUrl()}" scope="canvas:read"`,
+					"WWW-Authenticate": canvasAuthorizationChallenge(
+						canvasMcpProtectedResourceMetadataUrl(),
+					),
 				},
 			},
 		);
