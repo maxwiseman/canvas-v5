@@ -1,1 +1,0 @@
-- Move announcement New badges beside the chevron and mark announcements read when opened, with immediate local updates, persisted offline retries, and Canvas read-state synchronization.
