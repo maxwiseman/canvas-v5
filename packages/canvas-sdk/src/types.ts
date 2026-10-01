@@ -1,6 +1,6 @@
 import type { NormalizedCanvasResource } from "@canvas-v5/canvas-core";
 
-export type CanvasRuntimeMode = "extension" | "web" | "mock";
+export type CanvasRuntimeMode = "extension" | "web" | "mock" | "chatgpt";
 
 export type CanvasAuthState =
 	| { status: "checking" }

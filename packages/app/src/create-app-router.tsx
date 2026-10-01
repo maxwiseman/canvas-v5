@@ -1,10 +1,11 @@
-import { createRouter } from "@tanstack/react-router";
+import { createRouter, type RouterHistory } from "@tanstack/react-router";
 
 import { routeTree } from "./routeTree.gen";
 
-export function createCanvasAppRouter() {
+export function createCanvasAppRouter(history?: RouterHistory) {
 	return createRouter({
 		routeTree,
+		history,
 		parseSearch: parseCanvasSearch,
 		scrollRestoration: true,
 		defaultPreload: "intent",

@@ -1,0 +1,1 @@
+- Refine the embedded Canvas UI to match the desktop host: flat surfaces, outlined cards, system typography, restrained corners, and spacious page gutters. Replace the disabled assignment comment editor with a clear read-only message.

@@ -2,6 +2,7 @@ import {
 	type CanvasAssignment,
 	type CanvasSubmissionInput,
 	useCanvasRuntime,
+	useCanvasSnapshot,
 	useTextSubmissionDraft,
 } from "@canvas-v5/canvas-sdk";
 import { Button } from "@canvas-v5/ui/components/button";
@@ -83,6 +84,34 @@ export function acceptsSubmissionFile(fileName: string, extensions?: string[]) {
 }
 
 export function AssignmentSubmission({
+	assignment,
+}: {
+	assignment: CanvasAssignment;
+}) {
+	const { mode } = useCanvasSnapshot();
+	const runtime = useCanvasRuntime();
+	if (mode === "chatgpt") {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle>Submission</CardTitle>
+					<CardDescription>
+						You can review your submission here. Open Canvas V5 in your browser
+						to submit or edit your work.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<Button variant="outline" onClick={() => void runtime.openAppLogin()}>
+						Open Canvas V5 <ExternalLink />
+					</Button>
+				</CardContent>
+			</Card>
+		);
+	}
+	return <WritableAssignmentSubmission assignment={assignment} />;
+}
+
+function WritableAssignmentSubmission({
 	assignment,
 }: {
 	assignment: CanvasAssignment;

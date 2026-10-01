@@ -1,0 +1,1 @@
+- Reuse ChatGPT-provided theme tokens throughout the embedded Canvas UI, including colors, fonts, button and card corners, and live host style updates. Add a shared `useIsChatGPT()` hook for component-specific adaptations.

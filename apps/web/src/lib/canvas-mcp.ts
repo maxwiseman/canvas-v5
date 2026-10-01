@@ -18,6 +18,7 @@ import {
 	pageDetail,
 	resourceDetail,
 } from "./canvas-mcp-data";
+import { registerCanvasPluginApp } from "./canvas-plugin-app";
 import {
 	CanvasSessionRequiredError,
 	ensureCanvasIdentityFresh,
@@ -25,7 +26,6 @@ import {
 	listCanvasAccountHealth,
 	listOwnedCanvasIdentities,
 } from "./canvas-sync";
-
 import {
 	assertRefreshScope,
 	CanvasRefreshPermissionError,
@@ -75,6 +75,7 @@ export function createCanvasMcpServer(context: string | CanvasMcpContext) {
 			? { userId: context, scopes: ["canvas:read", "canvas:refresh"] }
 			: context;
 	const server = new McpServer({ name: "canvas-v5", version: "0.4.0" });
+	registerCanvasPluginApp(server, userId);
 	const readAnnotations = {
 		readOnlyHint: true,
 		destructiveHint: false,

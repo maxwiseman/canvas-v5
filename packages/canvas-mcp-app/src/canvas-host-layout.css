@@ -1,0 +1,50 @@
+/* Layout belongs to Canvas. Host component styles must not add a second inset. */
+html[data-ui-host="chatgpt"] [data-slot="card"] {
+	--card-spacing: 20px;
+	padding: var(--card-spacing);
+	gap: 16px;
+}
+html[data-ui-host="chatgpt"]
+	[data-slot="card"]
+	> :is(
+		[data-slot="card-header"],
+		[data-slot="card-content"],
+		[data-slot="card-footer"]
+	) {
+	padding-inline: 0;
+}
+html[data-ui-host="chatgpt"] [data-slot="card-header"] {
+	gap: 4px;
+}
+html[data-ui-host="chatgpt"] [data-slot="page-wrapper"] {
+	padding: 40px 32px;
+}
+html[data-ui-host="chatgpt"] [data-slot="page-header"] {
+	margin-bottom: 32px;
+}
+html[data-ui-host="chatgpt"] [data-slot="page-title"] {
+	font-size: 28px;
+	line-height: 1.25;
+}
+html[data-ui-host="chatgpt"] [data-slot="page-subtitle"] {
+	margin-top: 4px;
+	font-size: 14px;
+	line-height: 1.5;
+}
+html[data-ui-host="chatgpt"] [data-page="assignment"] {
+	container-type: inline-size;
+}
+html[data-ui-host="chatgpt"] [data-slot="assignment-layout"] {
+	grid-template-columns: minmax(0, 1fr);
+	gap: 32px;
+}
+@container (min-width: 800px) {
+	html[data-ui-host="chatgpt"] [data-slot="assignment-layout"] {
+		grid-template-columns: minmax(0, 1fr) 19rem;
+	}
+}
+@media (max-width: 640px) {
+	html[data-ui-host="chatgpt"] [data-slot="page-wrapper"] {
+		padding: 16px;
+	}
+}

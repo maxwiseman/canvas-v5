@@ -1,6 +1,10 @@
 import { ScriptOnce } from "@tanstack/react-router";
 import { createContext, useContext, useEffect, useState } from "react";
 
+export const HostThemeContext = createContext<"light" | "dark" | undefined>(
+	undefined,
+);
+
 type Theme = "dark" | "light" | "system";
 
 type ThemeProviderProps = {
@@ -47,6 +51,7 @@ export function ThemeProvider({
 	defaultTheme = "system",
 	storageKey = "theme",
 }: ThemeProviderProps) {
+	const hostTheme = useContext(HostThemeContext);
 	const [theme, setThemeState] = useState<Theme>(defaultTheme);
 	const [mounted, setMounted] = useState(false);
 
@@ -62,17 +67,17 @@ export function ThemeProvider({
 
 	useEffect(() => {
 		if (!mounted) return;
-		applyTheme(theme);
-	}, [theme, mounted]);
+		applyTheme(hostTheme ?? theme);
+	}, [theme, hostTheme, mounted]);
 
 	useEffect(() => {
-		if (!mounted || theme !== "system") return;
+		if (!mounted || hostTheme || theme !== "system") return;
 
 		const media = window.matchMedia("(prefers-color-scheme: dark)");
 		const onChange = () => applyTheme("system");
 		media.addEventListener("change", onChange);
 		return () => media.removeEventListener("change", onChange);
-	}, [theme, mounted]);
+	}, [theme, hostTheme, mounted]);
 
 	const setTheme = (next: Theme) => {
 		localStorage.setItem(storageKey, next);

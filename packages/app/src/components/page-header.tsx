@@ -2,7 +2,11 @@ import { cn } from "@canvas-v5/ui/lib/utils";
 import type { HTMLProps, ReactNode } from "react";
 
 export function PageHeader({ children }: { children?: ReactNode }) {
-	return <div className="mb-8 flex gap-4">{children}</div>;
+	return (
+		<div data-slot="page-header" className="mb-8 flex gap-4">
+			{children}
+		</div>
+	);
 }
 
 export function PageHeaderContent({ children }: { children?: ReactNode }) {
@@ -10,11 +14,19 @@ export function PageHeaderContent({ children }: { children?: ReactNode }) {
 }
 
 export function PageHeaderTitle({ children }: { children?: ReactNode }) {
-	return <h1 className="font-medium text-3xl">{children}</h1>;
+	return (
+		<h1 data-slot="page-title" className="font-medium text-3xl">
+			{children}
+		</h1>
+	);
 }
 
 export function PageHeaderSubtitle({ children }: { children?: ReactNode }) {
-	return <h3 className="text-lg text-muted-foreground">{children}</h3>;
+	return (
+		<h3 data-slot="page-subtitle" className="text-lg text-muted-foreground">
+			{children}
+		</h3>
+	);
 }
 
 export function PageHeaderActions({
@@ -28,5 +40,7 @@ export function PageWrapper({
 	className,
 	...props
 }: { children?: ReactNode } & HTMLProps<HTMLDivElement>) {
-	return <div className={cn("p-8", className)} {...props} />;
+	return (
+		<div data-slot="page-wrapper" className={cn("p-8", className)} {...props} />
+	);
 }

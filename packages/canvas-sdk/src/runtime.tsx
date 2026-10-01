@@ -197,7 +197,10 @@ export class CanvasRuntime {
 				throw new Error("Canvas connection not found.");
 			}
 
-			if (account.authMode === "canvas-session") {
+			if (
+				account.authMode === "canvas-session" &&
+				this.options.mode !== "chatgpt"
+			) {
 				if (this.options.mode === "web") {
 					const isExtensionInstalled =
 						await this.options.checkExtensionInstalled?.();
@@ -325,7 +328,7 @@ export class CanvasRuntime {
 				? this.createProbedActiveAccount(canvasAuth)
 				: undefined;
 		const activeAccount =
-			this.options.mode === "web"
+			this.options.mode === "web" || this.options.mode === "chatgpt"
 				? this.snapshot.activeAccount
 				: probedActiveAccount;
 
@@ -349,7 +352,7 @@ export class CanvasRuntime {
 		}
 
 		if (
-			this.options.mode === "web" &&
+			(this.options.mode === "web" || this.options.mode === "chatgpt") &&
 			this.snapshot.activeAccount &&
 			canvasAuth.status !== "authenticated"
 		) {
@@ -469,6 +472,18 @@ export class CanvasRuntime {
 				...this.snapshot,
 				accounts: accountsWithActive,
 				activeAccount,
+				...(this.options.mode === "chatgpt" && activeAccount
+					? {
+							canvasAuth: {
+								status: "authenticated" as const,
+								baseUrl: activeAccount.canvasBaseUrl,
+								user: {
+									id: activeAccount.canvasUserId ?? activeAccount.connectionId,
+									name: activeAccount.label,
+								},
+							},
+						}
+					: {}),
 			});
 			await this.store.replaceAll("connections", accountsWithActive);
 			this.setScope("accounts", {

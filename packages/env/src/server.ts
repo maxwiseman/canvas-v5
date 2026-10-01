@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
+import { devPluginOrigin } from "./dev-plugin-origin";
+
+const devOrigin = devPluginOrigin(process.env);
 
 export const env = createEnv({
 	server: {
@@ -16,6 +19,11 @@ export const env = createEnv({
 			.enum(["development", "production", "test"])
 			.default("development"),
 	},
-	runtimeEnv: process.env,
+	runtimeEnv: {
+		...process.env,
+		...(devOrigin
+			? { BETTER_AUTH_URL: devOrigin, CORS_ORIGIN: devOrigin }
+			: {}),
+	},
 	emptyStringAsUndefined: true,
 });

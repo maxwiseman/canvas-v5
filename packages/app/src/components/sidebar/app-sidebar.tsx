@@ -1,4 +1,8 @@
-import { useCourses, useUpdateCourseIcon } from "@canvas-v5/canvas-sdk";
+import {
+	useCanvasSnapshot,
+	useCourses,
+	useUpdateCourseIcon,
+} from "@canvas-v5/canvas-sdk";
 import {
 	Sidebar,
 	SidebarContent,
@@ -10,11 +14,12 @@ import {
 	SidebarMenuAction,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	useSidebar,
 } from "@canvas-v5/ui/components/sidebar";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { CalendarDays, GraduationCap, Home, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 import { resolveCourseIconId } from "../../lib/course-icon";
 import { GlobalSearch } from "../global-search";
 import { IconPicker, isIconId } from "../icon-picker";
@@ -35,6 +40,11 @@ export function AppSidebar() {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
+	const { mode } = useCanvasSnapshot();
+	const { setOpenMobile } = useSidebar();
+	useEffect(() => {
+		if (mode === "chatgpt" && pathname) setOpenMobile(false);
+	}, [mode, pathname, setOpenMobile]);
 	const activeSidebar = sidebars.find(({ matcher }) => matcher.test(pathname));
 	const [hasGoneBack, setHasGoneBack] = useState(!activeSidebar);
 	const courses = useCourses();

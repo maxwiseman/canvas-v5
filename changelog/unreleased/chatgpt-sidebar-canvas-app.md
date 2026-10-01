@@ -1,0 +1,2 @@
+- Add a ChatGPT sidebar and conversation-panel entrypoint that embeds the existing Canvas V5 frontend, with internal navigation, host themes, and a mobile navigation toggle.
+- Load Canvas views through the authenticated plugin connection, keeping credentials on the server. Token connections support REST read views; browser-session connections expose cached content and explain unavailable views. Existing read and refresh permissions are preserved.

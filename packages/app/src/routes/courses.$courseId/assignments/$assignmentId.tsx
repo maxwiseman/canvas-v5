@@ -142,8 +142,11 @@ function AssignmentRoute() {
 		assignment.submission_types[0] === "external_tool";
 
 	return (
-		<PageWrapper className="mx-auto w-full max-w-6xl">
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
+		<PageWrapper data-page="assignment" className="mx-auto w-full max-w-6xl">
+			<div
+				data-slot="assignment-layout"
+				className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]"
+			>
 				<div className="min-w-0">
 					<PageHeader>
 						<PageHeaderContent>
@@ -252,31 +255,41 @@ function AssignmentRoute() {
 								</div>
 							</div>
 						))}
-						<CommentField
-							disabled={
-								commentsLoading ||
-								snapshot.appAuth.status !== "authenticated" ||
-								!commentTargetKey
-							}
-							onSubmit={async (content) => {
-								setCommentError(undefined);
-								try {
-									const saved = await runtime.createAssignmentComment(
-										numericCourseId,
-										numericAssignmentId,
-										content,
-									);
-									setAssignmentComments((comments) => [...comments, saved]);
-								} catch (error) {
-									setCommentError(
-										error instanceof Error
-											? error.message
-											: "Unable to save comment.",
-									);
-									throw error;
+						{snapshot.mode === "chatgpt" ? (
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								{commentsLoading
+									? "Loading comments…"
+									: assignmentComments.length
+										? "Add a comment in Canvas V5."
+										: "No comments yet. You can add one in Canvas V5."}
+							</p>
+						) : (
+							<CommentField
+								disabled={
+									commentsLoading ||
+									snapshot.appAuth.status !== "authenticated" ||
+									!commentTargetKey
 								}
-							}}
-						/>
+								onSubmit={async (content) => {
+									setCommentError(undefined);
+									try {
+										const saved = await runtime.createAssignmentComment(
+											numericCourseId,
+											numericAssignmentId,
+											content,
+										);
+										setAssignmentComments((comments) => [...comments, saved]);
+									} catch (error) {
+										setCommentError(
+											error instanceof Error
+												? error.message
+												: "Unable to save comment.",
+										);
+										throw error;
+									}
+								}}
+							/>
+						)}
 						{commentError ? (
 							<p className="text-destructive text-sm">{commentError}</p>
 						) : null}

@@ -1,0 +1,132 @@
+html,
+body,
+#root {
+	height: 100%;
+	margin: 0;
+	overflow: hidden;
+}
+body {
+	background: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-sans, system-ui, sans-serif);
+}
+.canvas-host-empty {
+	display: grid;
+	place-content: center;
+	gap: 12px;
+	height: 100%;
+	padding: 24px;
+	text-align: center;
+}
+.canvas-host-empty h1 {
+	font-size: 20px;
+	font-weight: 600;
+}
+.canvas-shared-app {
+	height: 100dvh;
+	position: relative;
+}
+.canvas-shared-app [data-slot="sidebar-wrapper"] {
+	height: 100%;
+	min-height: 0;
+}
+.canvas-shared-app [data-slot="sidebar-container"] {
+	position: absolute;
+	height: 100%;
+}
+
+/* Embedded appearance follows the host surface. The fallbacks also make local
+   previews useful when no host design tokens are supplied. */
+html[data-ui-host="chatgpt"] {
+	--background: var(--color-background-primary, #ffffff);
+	--foreground: var(--color-text-primary, #1a1c1f);
+	--card: var(--background);
+	--card-foreground: var(--foreground);
+	--popover: var(--color-background-secondary, #ffffff);
+	--popover-foreground: var(--foreground);
+	--primary: var(--color-background-inverse, #1a1c1f);
+	--primary-foreground: var(--color-text-inverse, #ffffff);
+	--secondary: var(--color-background-secondary, #f5f5f5);
+	--secondary-foreground: var(--foreground);
+	--muted: var(--secondary);
+	--muted-foreground: var(--color-text-secondary, #6b6b6b);
+	--accent: var(--secondary);
+	--accent-foreground: var(--foreground);
+	--border: var(--color-border-secondary, #e8e8e8);
+	--input: var(--border);
+	--ring: var(--color-ring-primary, #909090);
+	--sidebar: var(--background);
+	--sidebar-foreground: var(--foreground);
+	--sidebar-border: var(--border);
+	--sidebar-accent: var(--secondary);
+	--sidebar-accent-foreground: var(--foreground);
+	--canvas-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--text-xs: var(--font-text-xs-size, 0.75rem);
+	--text-sm: var(--font-text-sm-size, 0.875rem);
+	--text-base: var(--font-text-md-size, 1rem);
+}
+html[data-ui-host="chatgpt"] [data-slot="button"] {
+	border-radius: var(--border-radius-sm, 8px);
+}
+html[data-ui-host="chatgpt"] [data-slot="card"] {
+	background: var(--background);
+	border: 1px solid var(--border);
+	border-radius: var(--border-radius-lg, 12px);
+	box-shadow: none;
+}
+html[data-ui-host="chatgpt"]
+	:is([data-slot="card-header"], [data-slot="card-footer"]) {
+	border-radius: 0;
+}
+html[data-ui-host="chatgpt"]
+	:is(
+		[data-slot="input"],
+		[data-slot="textarea"],
+		[data-slot="select-trigger"],
+		[data-slot="input-group"]
+	) {
+	border-radius: var(--border-radius-md, 10px);
+}
+html[data-ui-host="chatgpt"]
+	:is(
+		[data-slot="dialog-content"],
+		[data-slot="popover-content"],
+		[data-slot="dropdown-menu-content"]
+	) {
+	border-radius: var(--border-radius-lg, 12px);
+}
+/* ChatGPT already supplies the outer application frame. */
+html[data-ui-host="chatgpt"] [data-slot="sidebar-inset"] {
+	margin: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+html[data-ui-host="chatgpt"] [data-slot="sidebar-container"] {
+	padding: 0;
+	border-right: 1px solid var(--border);
+}
+html[data-ui-host="chatgpt"] [data-slot="sidebar-inner"] {
+	border-radius: 0;
+}
+html[data-ui-host="chatgpt"]
+	:is([data-slot="sidebar-header"], [data-slot="sidebar-footer"]) {
+	padding: 20px 16px;
+}
+html[data-ui-host="chatgpt"] [data-slot="sidebar-menu-button"] {
+	border-radius: 8px;
+}
+html[data-ui-host="chatgpt"] [data-slot="app-scroll"] {
+	padding: 0;
+}
+
+html[data-ui-host="chatgpt"][data-theme="dark"] {
+	--background: var(--color-background-primary, #181818);
+	--foreground: var(--color-text-primary, #f5f5f5);
+	--popover: var(--color-background-secondary, #242424);
+	--primary: var(--color-background-inverse, #f5f5f5);
+	--primary-foreground: var(--color-text-inverse, #181818);
+	--secondary: var(--color-background-secondary, #252525);
+	--muted-foreground: var(--color-text-secondary, #a0a0a0);
+	--border: var(--color-border-secondary, #2b2b2b);
+	--ring: var(--color-ring-primary, #b5b5b5);
+}

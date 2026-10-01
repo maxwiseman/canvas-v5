@@ -34,7 +34,7 @@ export function CommentField({
 	}
 
 	return (
-		<InputGroup className="mt-8 flex-col items-end bg-input/20 ring-1 ring-border">
+		<InputGroup className="flex-col items-end bg-input/20 ring-1 ring-border">
 			<InputGroupTextarea
 				disabled={disabled || submitting}
 				onChange={(e) => setCommentContent(e.target.value)}

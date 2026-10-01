@@ -1,10 +1,11 @@
-// import type { useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
-import { SidebarInset } from "@canvas-v5/ui/components/sidebar";
+import { useCanvasSnapshot } from "@canvas-v5/canvas-sdk";
+import { SidebarInset, SidebarTrigger } from "@canvas-v5/ui/components/sidebar";
 import { Outlet } from "@tanstack/react-router";
 import { AppSidebar } from "./components/sidebar/app-sidebar";
 import { Providers } from "./providers";
 
 export function CanvasDevtoolsRoot() {
+	const { mode } = useCanvasSnapshot();
 	return (
 		<Providers>
 			{/*<div className="flex max-h-screen">
@@ -47,8 +48,17 @@ export function CanvasDevtoolsRoot() {
 			</div>*/}
 			<AppSidebar />
 			<SidebarInset>
-				<div className="relative size-full">
-					<div className="absolute size-full overflow-scroll p-1">
+				{mode === "chatgpt" && (
+					<div className="flex items-center gap-2 p-2 md:hidden">
+						<SidebarTrigger />
+						<span className="text-sm">Canvas workspace</span>
+					</div>
+				)}
+				<div className="relative size-full min-h-0 flex-1">
+					<div
+						data-slot="app-scroll"
+						className="absolute size-full overflow-scroll p-1"
+					>
 						<Outlet />
 					</div>
 				</div>

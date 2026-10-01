@@ -3,15 +3,29 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".output/**", ".vercel/output/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "dist/**",
+        ".output/**",
+        ".vercel/output/**",
+        "src/generated/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "dev": {
       "cache": false,
@@ -41,6 +55,10 @@
     "CANVAS_SYNC_VAPID_PUBLIC_KEY",
     "CANVAS_SYNC_VAPID_PRIVATE_KEY",
     "CANVAS_SYNC_VAPID_SUBJECT",
-    "CANVAS_SYNC_CRON_SECRET"
+    "CANVAS_SYNC_CRON_SECRET",
+    "CANVAS_DEV_PLUGIN",
+    "VERCEL_ENV",
+    "VERCEL_URL",
+    "VERCEL_GIT_COMMIT_REF"
   ]
 }

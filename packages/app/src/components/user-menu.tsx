@@ -30,7 +30,7 @@ import { useTheme } from "./theme-provider";
 
 export default function UserMenu() {
 	const runtime = useCanvasRuntime();
-	const { appAuth } = useCanvasSnapshot();
+	const { appAuth, mode } = useCanvasSnapshot();
 	const { accounts, activeAccount, switchAccount } = useCanvasAccountSwitcher();
 	const { theme, setTheme } = useTheme();
 	const [signingOut, setSigningOut] = useState(false);
@@ -67,7 +67,14 @@ export default function UserMenu() {
 						<div className="text-sm">{user.email}</div>
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem render={<Link to={"/account" as never} />}>
+					<DropdownMenuItem
+						render={
+							mode === "chatgpt" ? undefined : <Link to={"/account" as never} />
+						}
+						onClick={
+							mode === "chatgpt" ? () => void runtime.openAppLogin() : undefined
+						}
+					>
 						<Settings /> Settings
 					</DropdownMenuItem>
 					{accounts.length > 0 ? (
@@ -93,7 +100,7 @@ export default function UserMenu() {
 						</DropdownMenuSub>
 					) : null}
 					<DropdownMenuSub>
-						<DropdownMenuSubTrigger>
+						<DropdownMenuSubTrigger disabled={mode === "chatgpt"}>
 							<SunMoon /> Theme
 						</DropdownMenuSubTrigger>
 						<DropdownMenuContent side="right">
@@ -110,7 +117,7 @@ export default function UserMenu() {
 					</DropdownMenuSub>
 					<DropdownMenuItem
 						variant="destructive"
-						disabled={signingOut}
+						disabled={signingOut || mode === "chatgpt"}
 						onClick={() => {
 							setSigningOut(true);
 							void runtime.signOutApp().finally(() => setSigningOut(false));

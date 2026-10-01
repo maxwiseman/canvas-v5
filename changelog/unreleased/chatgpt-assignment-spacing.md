@@ -1,0 +1,1 @@
+- Normalize embedded Canvas card padding and page gutters, remove the extra gap above assignment comments, and stack assignment details based on available content width.

@@ -9,22 +9,32 @@ import {
 	type OverlayTransport,
 	WebCanvasProxyTransport,
 } from "@canvas-v5/canvas-sdk";
-import { RouterProvider } from "@tanstack/react-router";
+import { UIHostContext } from "@canvas-v5/ui/hooks/use-ui-host";
+import { type RouterHistory, RouterProvider } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
+import { HostThemeContext } from "./components/theme-provider";
 import { createCanvasAppRouter } from "./create-app-router";
 
 export interface CanvasAppProps {
 	runtime: CanvasRuntime;
 	fallback?: ReactNode;
+	history?: RouterHistory;
+	hostTheme?: "light" | "dark";
 }
 
-export function CanvasApp({ runtime }: CanvasAppProps) {
-	const router = useMemo(() => createCanvasAppRouter(), []);
+export function CanvasApp({ runtime, history, hostTheme }: CanvasAppProps) {
+	const router = useMemo(() => createCanvasAppRouter(history), [history]);
 
 	return (
 		<CanvasRuntimeProvider runtime={runtime}>
-			<RouterProvider router={router} />
+			<UIHostContext
+				value={runtime.getSnapshot().mode === "chatgpt" ? "chatgpt" : "default"}
+			>
+				<HostThemeContext value={hostTheme}>
+					<RouterProvider router={router} />
+				</HostThemeContext>
+			</UIHostContext>
 		</CanvasRuntimeProvider>
 	);
 }
