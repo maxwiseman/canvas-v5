@@ -26,7 +26,7 @@
 		"@platejs/list-classic": "^53.0.0",
 		"@platejs/media": "^53.1.4",
 		"@tabler/icons-react": "^3.44.0",
-		"@tanstack/react-router": "^1.168.22",
+		"@tanstack/react-router": "1.170.41",
 		"katex": "^0.17.0",
 		"lucide-react": "^1.8.0",
 		"motion": "^12.40.0",

@@ -1,0 +1,1 @@
+- Update TanStack Start to the patched 1.168.60 release and align shared router versions so the dev plugin preview can deploy with Vercel's security checks enabled.
